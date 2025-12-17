@@ -1,0 +1,23 @@
+var unsorted_c = [1000, 200, 100, 500]
+var c = sort_number(unsorted_c)
+println(c)
+var n = 1200
+var s = []
+var i = len(c) - 1
+repeat {
+ repeat {
+ if (n < c[i]) {
+ return null
+ }
+ println("target_value: " + n + " ||
+current_coin: " + c[i])
+ s + c[i]
+var n = n - c[i]
+ println("current target value: "+ n)
+ }
+ if (n == 0) {
+ return null
+ }
+ var i = i - 1
+}
+println(s)
