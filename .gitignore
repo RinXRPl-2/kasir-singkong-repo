@@ -1,0 +1,8 @@
+# Abaikan semua file
+*
+
+# KECUALI file kasir utama
+!kasir sederhana.singkong
+
+# KECUALI file .gitignore
+!.gitignore
