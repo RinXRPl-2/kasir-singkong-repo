@@ -89,6 +89,27 @@ var getSelectedProduct = fn() {
     return selectedProductContainer[0]
 }
 
+var dapatkanUserId = fn() {
+    var u = getUserLogin()
+    if (u != null) {
+        return u[0]
+    }
+    return null
+}
+
+var isAdmin = fn() {
+    var u = getUserLogin()
+    if (u != null) {
+        if (len(u) >= 4) {
+            var role = u[3]
+            if (role == "admin") {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 var daftar = fn() {
     var username = input("Username:", "Pendaftaran User Baru")
     if (empty(username)) {
@@ -169,32 +190,6 @@ var logout = fn() {
     message("Logout berhasil!")
 }
 
-var cekLogin = fn() {
-    var u = getUserLogin()
-    return u != null
-}
-
-var dapatkanUserId = fn() {
-    var u = getUserLogin()
-    if (u != null) {
-        return u[0]
-    }
-    return null
-}
-
-var isAdmin = fn() {
-    var u = getUserLogin()
-    if (u != null) {
-        if (len(u) >= 4) {
-            var role = u[3]
-            if (role == "admin") {
-                return true
-            }
-        }
-    }
-    return false
-}
-
 var lihatSemuaProduk = fn() {
     var q = "SELECT id, nama, harga, stok, kategori FROM products ORDER BY kategori, nama"
     var hasil = eksekusiQuery(q, [])
@@ -233,8 +228,9 @@ var cariProduk = fn() {
     reset()
     var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
     config(tabel, "contents", hasil[0])
+    config(tabel, "size", [800, 400])
     
-    var btnKembali = component("button", "Kembali ke Daftar Produk")
+    var btnKembali = component("button", "Kembali")
     
     event(btnKembali, fn() {
         frame_close()
@@ -253,29 +249,33 @@ var tampilkanProduk = fn() {
     var userData = getUserLogin()
     var roleUser = string(userData[3])
     
-    var lblInfo = component("label", "Login sebagai: " + userData[2] + " | Role: " + roleUser)
-    config(lblInfo, "font", ["dialog", 1, 12])
+    var mainGrid = component("grid", "")
     
-    var lblJudul = component("label", "MENU UTAMA")
-    config(lblJudul, "font", ["monospaced", 1, 20])
+    var lblInfo = component("label", "Login sebagai: " + userData[2] + " | Role: " + roleUser)
+    config(lblInfo, "font", ["dialog", 1, 14])
+    
+    grid_add(mainGrid, lblInfo, 0, 0, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
+    
+    var products = lihatSemuaProduk()
+    
+    var lblDaftarProduk = component("label", "DAFTAR PRODUK")
+    config(lblDaftarProduk, "font", ["dialog", 1, 16])
+    grid_add(mainGrid, lblDaftarProduk, 0, 1, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
+    
+    var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
+    config(tabel, "contents", products)
+    config(tabel, "size", [900, 600])
+    table_center(tabel, 0)
+    table_left(tabel, 1)
+    table_right(tabel, 2)
+    table_center(tabel, 3)
+    table_center(tabel, 4)
+    grid_add(mainGrid, tabel, 0, 2, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
     
     if (roleUser == "admin") {
-     
-        var products = lihatSemuaProduk()
-        
-        var lblDaftarProduk = component("label", "DAFTAR PRODUK")
-        config(lblDaftarProduk, "font", ["dialog", 1, 14])
-        
-        var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
-        config(tabel, "contents", products)
-        table_center(tabel, 0)
-        table_left(tabel, 1)
-        table_right(tabel, 2)
-        table_center(tabel, 3)
-        table_center(tabel, 4)
-        
         var lblSelected = component("label", "Pilih produk dari tabel untuk edit/hapus")
         config(lblSelected, "font", ["dialog", 2, 12])
+        grid_add(mainGrid, lblSelected, 0, 3, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
         
         event(tabel, fn() {
             var row = get(tabel, "active")
@@ -286,7 +286,7 @@ var tampilkanProduk = fn() {
             }
         })
         
-        var grid = component("grid", "")
+        var buttonGrid = component("grid", "")
         
         var btnCari = component("button", "Cari Produk")
         var btnTambahProduk = component("button", "Tambah Produk")
@@ -297,14 +297,14 @@ var tampilkanProduk = fn() {
         var btnLogout = component("button", "Logout")
         var btnKeluar = component("button", "Keluar")
         
-        grid_add(grid, btnCari, 0, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnTambahProduk, 1, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnEditProduk, 2, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnHapusProduk, 0, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnLaporan, 1, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnKelolaUser, 2, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnLogout, 0, 2, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnKeluar, 1, 2, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnCari, 0, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnTambahProduk, 1, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnEditProduk, 2, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnHapusProduk, 0, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnLaporan, 1, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnKelolaUser, 2, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnLogout, 0, 2, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnKeluar, 1, 2, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
         
         event(btnCari, fn() {
             cariProduk()
@@ -350,28 +350,12 @@ var tampilkanProduk = fn() {
             keluarAplikasi()
         })
         
-        add_n([lblInfo, lblJudul, lblDaftarProduk])
-        add(tabel)
-        add_n(lblSelected)
-        add(grid)
+        grid_add(mainGrid, buttonGrid, 0, 4, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
         
     } else {
-
-        var products = lihatSemuaProduk()
-        
-        var lblDaftarProduk = component("label", "DAFTAR PRODUK")
-        config(lblDaftarProduk, "font", ["dialog", 1, 14])
-        
-        var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
-        config(tabel, "contents", products)
-        table_center(tabel, 0)
-        table_left(tabel, 1)
-        table_right(tabel, 2)
-        table_center(tabel, 3)
-        table_center(tabel, 4)
-        
         var lblSelected = component("label", "Pilih produk dari tabel untuk menambah ke keranjang")
         config(lblSelected, "font", ["dialog", 2, 12])
+        grid_add(mainGrid, lblSelected, 0, 3, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
         
         event(tabel, fn() {
             var row = get(tabel, "active")
@@ -382,7 +366,7 @@ var tampilkanProduk = fn() {
             }
         })
         
-        var grid = component("grid", "")
+        var buttonGrid = component("grid", "")
         
         var btnCari = component("button", "Cari Produk")
         var btnTambahKeranjang = component("button", "Tambah ke Keranjang")
@@ -391,12 +375,12 @@ var tampilkanProduk = fn() {
         var btnLogout = component("button", "Logout")
         var btnKeluar = component("button", "Keluar")
         
-        grid_add(grid, btnCari, 0, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnTambahKeranjang, 1, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnKeranjang, 2, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnRiwayat, 0, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnLogout, 1, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnKeluar, 2, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnCari, 0, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnTambahKeranjang, 1, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnKeranjang, 2, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnRiwayat, 0, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnLogout, 1, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnKeluar, 2, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
         
         event(btnCari, fn() {
             cariProduk()
@@ -429,79 +413,11 @@ var tampilkanProduk = fn() {
             keluarAplikasi()
         })
         
-        add_n([lblInfo, lblJudul, lblDaftarProduk])
-        add(tabel)
-        add_n(lblSelected)
-        add(grid)
+        grid_add(mainGrid, buttonGrid, 0, 4, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
     }
     
-    title("Menu Utama")
-    show()
-}
-
-var lihatDaftarProduk = fn() {
-    var products = lihatSemuaProduk()
-    
-    if (len(products) == 0) {
-        message("Tidak ada produk tersedia")
-        return null
-    }
-    
-    reset()
-    
-    var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
-    config(tabel, "contents", products)
-    
-    table_center(tabel, 0)
-    table_left(tabel, 1)
-    table_right(tabel, 2)
-    table_center(tabel, 3)
-    table_center(tabel, 4)
-    
-    var lblSelected = component("label", "Pilih produk dari tabel untuk menambah ke keranjang")
-    config(lblSelected, "font", ["dialog", 2, 12])
-    
-    event(tabel, fn() {
-        var row = get(tabel, "active")
-        if (row >= 0) {
-            var selectedRow = products[row]
-            setSelectedProduct(selectedRow)
-            config(lblSelected, "text", "Dipilih: " + selectedRow[1] + " (ID: " + string(selectedRow[0]) + ")")
-        }
-    })
-    
-    var grid = component("grid", "")
-    
-    var btnCari = component("button", "Cari Produk")
-    var btnTambahKeranjang = component("button", "Tambah ke Keranjang")
-    var btnTutup = component("button", "Kembali ke Menu")
-    
-    grid_add(grid, btnCari, 0, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-    grid_add(grid, btnTambahKeranjang, 1, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-    grid_add(grid, btnTutup, 2, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-    
-    event(btnCari, fn() {
-        cariProduk()
-    })
-    
-    event(btnTambahKeranjang, fn() {
-        var produk = getSelectedProduct()
-        if (produk == null) {
-            message("Silakan pilih produk dari tabel terlebih dahulu!")
-            return null
-        }
-        tambahKeKeranjangDariTabel(produk)
-    })
-    
-    event(btnTutup, fn() {
-        frame_close()
-        tampilkanProduk()
-    })
-    
-    add(tabel)
-    add_n(lblSelected)
-    add(grid)
-    title("Daftar Produk")
+    add(mainGrid)
+    title("Aplikasi Kasir - " + roleUser)
     show()
 }
 
@@ -593,9 +509,23 @@ var tambahProduk = fn() {
     }
     var stok = number(stokStr)
     
-    var kategori = input("Kategori (Makanan/Minuman/Lainnya):", "Tambah Produk Baru")
-    if (empty(kategori)) {
+    var kategoriMsg = "Pilih Kategori:" + newline() + "1. Makanan" + newline() + "2. Minuman" + newline() + "3. Lainnya"
+    var kategoriInput = input(kategoriMsg, "Pilih Kategori")
+    if (empty(kategoriInput)) {
         return false
+    }
+    
+    var kategori = "Lainnya"
+    var kategoriNum = number(kategoriInput)
+    
+    if (kategoriNum == 1) {
+        var kategori = "Makanan"
+    } else {
+        if (kategoriNum == 2) {
+            var kategori = "Minuman"
+        } else {
+            var kategori = "Lainnya"
+        }
     }
     
     var q = "INSERT INTO products (nama, harga, stok, kategori) VALUES (?, ?, ?, ?)"
@@ -603,7 +533,6 @@ var tambahProduk = fn() {
     
     if (hasil != null) {
         message("Produk berhasil ditambahkan!")
-        frame_close()
         tampilkanProduk()
         return true
     }
@@ -636,9 +565,21 @@ var editProdukDariTabel = fn(produk) {
         set(stok, 0, number(stokStr))
     }
     
-    var kategoriInput = input("Kategori [" + string(produkLama[4]) + "]:", "Edit Produk")
+    var kategoriMsg = "Kategori saat ini: " + string(produkLama[4]) + newline() + newline() + "Pilih Kategori Baru:" + newline() + "1. Makanan" + newline() + "2. Minuman" + newline() + "3. Lainnya" + newline() + newline() + "Kosongkan jika tidak ingin mengubah"
+    var kategoriInput = input(kategoriMsg, "Edit Kategori")
     if (empty(kategoriInput) == false) {
-        set(kategori, 0, kategoriInput)
+        var kategoriNum = number(kategoriInput)
+        if (kategoriNum == 1) {
+            set(kategori, 0, "Makanan")
+        } else {
+            if (kategoriNum == 2) {
+                set(kategori, 0, "Minuman")
+            } else {
+                if (kategoriNum == 3) {
+                    set(kategori, 0, "Lainnya")
+                }
+            }
+        }
     }
     
     var q = "UPDATE products SET nama = ?, harga = ?, stok = ?, kategori = ? WHERE id = ?"
@@ -647,7 +588,6 @@ var editProdukDariTabel = fn(produk) {
     if (hasil != null) {
         message("Produk berhasil diupdate!")
         setSelectedProduct(null)
-        frame_close()
         tampilkanProduk()
         return true
     }
@@ -668,7 +608,6 @@ var hapusProdukDariTabel = fn(produk) {
         if (hasil != null) {
             message("Produk berhasil dihapus!")
             setSelectedProduct(null)
-            frame_close()
             tampilkanProduk()
             return true
         }
@@ -714,6 +653,7 @@ var tampilkanKeranjang = fn() {
     
     var tabel = component("table", "ID,Produk,Harga,Qty,Subtotal", true)
     config(tabel, "contents", items)
+    config(tabel, "size", [700, 400])
     
     table_center(tabel, 0)
     table_left(tabel, 1)
@@ -727,7 +667,7 @@ var tampilkanKeranjang = fn() {
     var btnCheckout = component("button", "Checkout")
     var btnHapus = component("button", "Hapus Item")
     var btnKosongkan = component("button", "Kosongkan Keranjang")
-    var btnTutup = component("button", "Tutup")
+    var btnTutup = component("button", "Kembali")
     
     event(btnCheckout, fn() {
         var pilihanMetode = ["Tunai", "Kartu", "Transfer"]
@@ -761,6 +701,7 @@ var tampilkanKeranjang = fn() {
             var berhasil = checkoutDenganMetode(metodePembayaran, items, total)
             if (berhasil) {
                 frame_close()
+                tampilkanProduk()
             }
         }
     })
@@ -793,6 +734,7 @@ var tampilkanKeranjang = fn() {
             if (hasil != null) {
                 message("Keranjang berhasil dikosongkan!")
                 frame_close()
+                tampilkanProduk()
             } else {
                 message("Gagal mengosongkan keranjang!")
             }
@@ -801,6 +743,7 @@ var tampilkanKeranjang = fn() {
     
     event(btnTutup, fn() {
         frame_close()
+        tampilkanProduk()
     })
     
     add(tabel)
@@ -890,6 +833,7 @@ var lihatRiwayatTransaksi = fn() {
     reset()
     var tabel = component("table", "ID,Total,Tanggal,Metode", true)
     config(tabel, "contents", hasil[0])
+    config(tabel, "size", [700, 400])
     
     table_center(tabel, 0)
     table_right(tabel, 1)
@@ -898,7 +842,7 @@ var lihatRiwayatTransaksi = fn() {
     
     var btnLihatDetail = component("button", "Lihat Detail")
     var btnCetakStruk = component("button", "Cetak Struk")
-    var btnTutup = component("button", "Tutup")
+    var btnTutup = component("button", "Kembali")
     
     event(btnLihatDetail, fn() {
         var idStr = input("Masukkan ID Transaksi:", "Lihat Detail")
@@ -918,6 +862,7 @@ var lihatRiwayatTransaksi = fn() {
     
     event(btnTutup, fn() {
         frame_close()
+        tampilkanProduk()
     })
     
     add(tabel)
@@ -948,6 +893,7 @@ var lihatDetailTransaksi = fn(transaksiId) {
     reset()
     var tabel = component("table", "Produk,Qty,Harga,Subtotal", true)
     config(tabel, "contents", detail[0])
+    config(tabel, "size", [700, 400])
     
     table_left(tabel, 0)
     table_center(tabel, 1)
@@ -966,10 +912,11 @@ var lihatDetailTransaksi = fn(transaksiId) {
     var lblTotal = component("label", "Total: Rp " + string(total))
     config(lblTotal, "font", ["monospaced", 1, 18])
     
-    var btnTutup = component("button", "Tutup")
+    var btnTutup = component("button", "Kembali")
     
     event(btnTutup, fn() {
         frame_close()
+        lihatRiwayatTransaksi()
     })
     
     add(tabel)
@@ -1040,14 +987,16 @@ var cetakStruk = fn(transaksiId) {
     config(textStruk, "font", ["monospaced", 0, 12])
 
     var btnCetak = component("button", "Print")
-    var btnTutup = component("button", "Tutup")
+    var btnTutup = component("button", "Kembali")
 
     event(btnCetak, fn() {
         printer([struk[0]], 12, 50, 50, "monospaced")
+        message("Struk berhasil dicetak!")
     })
 
     event(btnTutup, fn() {
         frame_close()
+        lihatRiwayatTransaksi()
     })
 
     add(textStruk)
@@ -1089,6 +1038,19 @@ var laporanHarian = fn() {
 
     var qProduk = "SELECT p.nama, SUM(td.jumlah) as terjual, SUM(td.subtotal) as pendapatan FROM transaksi_detail td JOIN products p ON td.product_id = p.id JOIN transaksi t ON td.transaksi_id = t.id WHERE DATE(t.tanggal) = " + tanggalQuery[0] + " GROUP BY p.nama ORDER BY terjual DESC LIMIT 10"
     var produkTerlaris = eksekusiQuery(qProduk, [])
+    
+    var totalPendapatanProduk = [0]
+    if (produkTerlaris != null) {
+        if (len(produkTerlaris) > 0) {
+            if (len(produkTerlaris[0]) > 0) {
+                each(produkTerlaris[0], fn(produk, i) {
+                    var currentTotal = totalPendapatanProduk[0]
+                    var newTotal = currentTotal + produk[2]
+                    set(totalPendapatanProduk, 0, newTotal)
+                })
+            }
+        }
+    }
 
     var qMetode = "SELECT metode_pembayaran, COUNT(*) as jumlah, SUM(total) as total_nilai FROM transaksi WHERE DATE(tanggal) = " + tanggalQuery[0] + " GROUP BY metode_pembayaran ORDER BY jumlah DESC"
     var metodeData = eksekusiQuery(qMetode, [])
@@ -1096,38 +1058,33 @@ var laporanHarian = fn() {
     reset()
 
     var lblJudul = component("label", "LAPORAN HARIAN - " + judulTanggal[0])
-    config(lblJudul, "font", ["monospaced", 1, 20])
-
-    var separator1 = component("label", "==========================================")
-    config(separator1, "font", ["monospaced", 0, 14])
+    config(lblJudul, "font", ["dialog", 1, 16])
 
     var lblRingkasan = component("label", "RINGKASAN TRANSAKSI")
-    config(lblRingkasan, "font", ["monospaced", 1, 16])
+    config(lblRingkasan, "font", ["dialog", 1, 14])
 
     var lblTotal = component("label", "Total Transaksi: " + string(totalTransaksi) + " transaksi")
-    config(lblTotal, "font", ["dialog", 0, 14])
+    config(lblTotal, "font", ["dialog", 0, 12])
     
     var lblPendapatan = component("label", "Total Pendapatan: Rp " + string(totalPendapatan))
-    config(lblPendapatan, "font", ["monospaced", 1, 18])
+    config(lblPendapatan, "font", ["dialog", 1, 14])
 
     var rataRata = 0
     if (totalTransaksi > 0) {
         var rataRata = totalPendapatan
     }
     var lblRataRata = component("label", "Rata-rata per Transaksi: Rp " + string(rataRata))
-    config(lblRataRata, "font", ["dialog", 0, 14])
-
-    var separator2 = component("label", "==========================================")
-    config(separator2, "font", ["monospaced", 0, 14])
+    config(lblRataRata, "font", ["dialog", 0, 12])
 
     var lblMetode = component("label", "METODE PEMBAYARAN")
-    config(lblMetode, "font", ["monospaced", 1, 16])
+    config(lblMetode, "font", ["dialog", 1, 14])
 
-    var tabelMetode = component("table", "Metode,Jumlah Transaksi,Total Nilai", true)
+    var tabelMetode = component("table", "Metode,Jumlah,Total Nilai", true)
     if (metodeData != null) {
         if (len(metodeData) > 0) {
             if (len(metodeData[0]) > 0) {
                 config(tabelMetode, "contents", metodeData[0])
+                config(tabelMetode, "size", [700, 100])
                 table_left(tabelMetode, 0)
                 table_center(tabelMetode, 1)
                 table_right(tabelMetode, 2)
@@ -1135,44 +1092,42 @@ var laporanHarian = fn() {
         }
     }
 
-    var separator3 = component("label", "==========================================")
-    config(separator3, "font", ["monospaced", 0, 14])
-
     var lblProduk = component("label", "TOP 10 PRODUK TERLARIS")
-    config(lblProduk, "font", ["monospaced", 1, 16])
+    config(lblProduk, "font", ["dialog", 1, 14])
 
-    var tabelProduk = component("table", "Produk,Qty Terjual,Pendapatan", true)
+    var tabelProduk = component("table", "Produk,Qty,Pendapatan", true)
     if (produkTerlaris != null) {
         if (len(produkTerlaris) > 0) {
             if (len(produkTerlaris[0]) > 0) {
                 config(tabelProduk, "contents", produkTerlaris[0])
+                config(tabelProduk, "size", [700, 200])
                 table_left(tabelProduk, 0)
                 table_center(tabelProduk, 1)
                 table_right(tabelProduk, 2)
             }
         }
     }
-
-    var separator4 = component("label", "==========================================")
-    config(separator4, "font", ["monospaced", 0, 14])
+    
+    var lblTotalPendapatanProduk = component("label", "Total Pendapatan dari Semua Produk: Rp " + string(totalPendapatanProduk[0]))
+    config(lblTotalPendapatanProduk, "font", ["dialog", 1, 12])
 
     var btnCetakLaporan = component("button", "Cetak Laporan")
-    var btnTutup = component("button", "Tutup")
+    var btnTutup = component("button", "Kembali")
 
     event(btnCetakLaporan, fn() {
-        cetakLaporan(judulTanggal[0], totalTransaksi, totalPendapatan, metodeData, produkTerlaris)
+        cetakLaporan(judulTanggal[0], totalTransaksi, totalPendapatan, metodeData, produkTerlaris, totalPendapatanProduk[0])
     })
 
     event(btnTutup, fn() {
         frame_close()
+        tampilkanProduk()
     })
 
-    add_n([lblJudul, separator1, lblRingkasan, lblTotal, lblPendapatan, lblRataRata])
-    add_n([separator2, lblMetode])
+    add_n([lblJudul, lblRingkasan, lblTotal, lblPendapatan, lblRataRata, lblMetode])
     add(tabelMetode)
-    add_n([separator3, lblProduk])
+    add_n([lblProduk])
     add(tabelProduk)
-    add_n([separator4])
+    add_n([lblTotalPendapatanProduk])
     add_s([btnCetakLaporan, btnTutup])
     title("Laporan Harian")
     show()
@@ -1201,6 +1156,7 @@ var kelolaUser = fn() {
     
     var tabel = component("table", "ID,Username,Nama Lengkap,Role", true)
     config(tabel, "contents", hasil[0])
+    config(tabel, "size", [700, 400])
     
     table_center(tabel, 0)
     table_left(tabel, 1)
@@ -1210,7 +1166,7 @@ var kelolaUser = fn() {
     var btnUbahRole = component("button", "Ubah Role User")
     var btnHapusUser = component("button", "Hapus User")
     var btnResetPassword = component("button", "Reset Password")
-    var btnTutup = component("button", "Tutup")
+    var btnTutup = component("button", "Kembali")
     
     event(btnUbahRole, fn() {
         var idStr = input("Masukkan ID User yang akan diubah rolenya:", "Ubah Role")
@@ -1322,6 +1278,7 @@ var kelolaUser = fn() {
     
     event(btnTutup, fn() {
         frame_close()
+        tampilkanProduk()
     })
     
     add(tabel)
@@ -1330,7 +1287,7 @@ var kelolaUser = fn() {
     show()
 }
 
-var cetakLaporan = fn(tanggal, totalTransaksi, totalPendapatan, metodeData, produkData) {
+var cetakLaporan = fn(tanggal, totalTransaksi, totalPendapatan, metodeData, produkData, totalPendapatanProduk) {
     var laporan = ["========================================" + newline()]
     set(laporan, 0, laporan[0] + "      LAPORAN HARIAN PENJUALAN" + newline())
     set(laporan, 0, laporan[0] + "========================================" + newline())
@@ -1378,6 +1335,8 @@ var cetakLaporan = fn(tanggal, totalTransaksi, totalPendapatan, metodeData, prod
     }
     
     set(laporan, 0, laporan[0] + newline())
+    set(laporan, 0, laporan[0] + "Total Pendapatan dari Semua Produk: Rp " + string(totalPendapatanProduk) + newline())
+    set(laporan, 0, laporan[0] + newline())
     set(laporan, 0, laporan[0] + "========================================" + newline())
     set(laporan, 0, laporan[0] + "   Laporan dibuat oleh Aplikasi Kasir" + newline())
     set(laporan, 0, laporan[0] + "========================================" + newline())
@@ -1387,14 +1346,16 @@ var cetakLaporan = fn(tanggal, totalTransaksi, totalPendapatan, metodeData, prod
     config(textLaporan, "font", ["monospaced", 0, 12])
     
     var btnCetak = component("button", "Print")
-    var btnTutup = component("button", "Tutup")
+    var btnTutup = component("button", "Kembali")
     
     event(btnCetak, fn() {
         printer([laporan[0]], 12, 50, 50, "monospaced")
+        message("Laporan berhasil dicetak!")
     })
     
     event(btnTutup, fn() {
         frame_close()
+        laporanHarian()
     })
     
     add(textLaporan)
@@ -1407,7 +1368,8 @@ var keluarAplikasi = fn() {
     var konfirmasi = confirm("Yakin ingin keluar dari aplikasi?", "Konfirmasi Keluar")
     if (konfirmasi == "OK") {
         message("Terima kasih telah menggunakan Aplikasi Kasir!")
-        system(["exit", "0"])
+        frame_close()
+        system(["exit"])
     }
 }
 
@@ -1419,40 +1381,23 @@ var tampilkanMenuUtama = fn() {
     
     var grid = component("grid", "")
     
-    var isLogin = cekLogin()
+    var btnLogin = component("button", "Login")
+    var btnDaftar = component("button", "Daftar")
     
-    if (isLogin == false) {
-        var btnLogin = component("button", "Login")
-        var btnDaftar = component("button", "Daftar")
-        var btnTestHash = component("button", "Test Hash Password")
-        
-        grid_add(grid, btnLogin, 0, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnDaftar, 0, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        grid_add(grid, btnTestHash, 0, 2, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
-        
-        event(btnLogin, fn() { 
-            var loginBerhasil = login()
-            if (loginBerhasil) { 
-                frame_close()
-                tampilkanProduk()
-            } 
-        })
-        
-        event(btnDaftar, fn() { 
-            daftar()
-        })
-        
-        event(btnTestHash, fn() {
-            var pwd = input("Masukkan password untuk di-hash:", "Test Hash")
-            if (empty(pwd) == false) {
-                var hashed = hashPassword(pwd)
-                message("Password: " + pwd + newline() + "Hash: " + hashed + newline() + newline() + "Gunakan hash ini untuk update database")
-            }
-        })
-    } else {
-        tampilkanProduk()
-        return null
-    }
+    grid_add(grid, btnLogin, 0, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
+    grid_add(grid, btnDaftar, 0, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
+    
+    event(btnLogin, fn() { 
+        var loginBerhasil = login()
+        if (loginBerhasil) { 
+            frame_close()
+            tampilkanProduk()
+        } 
+    })
+    
+    event(btnDaftar, fn() { 
+        daftar()
+    })
     
     add_n(lblJudul)
     add(grid)
