@@ -1,0 +1,1521 @@
+var DB_URL = "jdbc:postgresql://localhost:5432/kasir_db"
+var DB_USER = "postgres"
+var DB_PASSWORD = "admin"
+
+load_module("util")
+
+var formatRupiah = fn(angka) {
+    var angkaStr = string(angka)
+    var hasil = ""
+    var counter = 0
+    var panjang = len(angkaStr)
+    
+    var i = panjang - 1
+    repeat {
+        if (i < 0) {
+            return "Rp " + hasil
+        }
+        
+        var hasil = angkaStr[i] + hasil
+        var counter = counter + 1
+        
+        if (counter == 3) {
+            if (i > 0) {
+                var hasil = "." + hasil
+            }
+            var counter = 0
+        }
+        
+        var i = i - 1
+    }
+}
+
+var formatDataProduk = fn(products) {
+    var hasil = []
+    each(products, fn(produk, idx) {
+        var formatted = [
+            string(produk[0]),
+            string(produk[1]),
+            formatRupiah(produk[2]),
+            string(produk[3]),
+            string(produk[4])
+        ]
+        var hasil = hasil + [formatted]
+    })
+    return hasil
+}
+
+var formatDataKeranjang = fn(items) {
+    var hasil = []
+    each(items, fn(item, idx) {
+        var formatted = [
+            string(item[0]),
+            string(item[1]),
+            formatRupiah(item[2]),
+            string(item[3]),
+            formatRupiah(item[4])
+        ]
+        var hasil = hasil + [formatted]
+    })
+    return hasil
+}
+
+var formatDataTransaksi = fn(transaksi) {
+    var hasil = []
+    each(transaksi, fn(item, idx) {
+        var formatted = [
+            string(item[0]),
+            formatRupiah(item[1]),
+            string(item[2]),
+            string(item[3])
+        ]
+        var hasil = hasil + [formatted]
+    })
+    return hasil
+}
+
+var formatDataDetail = fn(details) {
+    var hasil = []
+    each(details, fn(item, idx) {
+        var formatted = [
+            string(item[0]),
+            string(item[1]),
+            formatRupiah(item[2]),
+            formatRupiah(item[3])
+        ]
+        var hasil = hasil + [formatted]
+    })
+    return hasil
+}
+
+var userLoginContainer = [null]
+var selectedProductContainer = [null]
+
+var buatKoneksi = fn() {
+    var conn = database("org.postgresql.Driver", DB_URL, DB_USER, DB_PASSWORD)
+    return conn
+}
+
+var eksekusiQuery = fn(q, params) {
+    var conn = buatKoneksi()
+    if (conn == null) {
+        message("Koneksi database gagal!")
+        return null
+    }
+    
+    var finalQuery = [q]
+    
+    each(params, fn(param, idx) {
+        var value = string(param)
+        
+        if (type(param) == "STRING") {
+            var value = "'" + param + "'"
+        }
+        
+        var replaceFirst = fn(text, value) {
+            var newQuery = ""
+            var found = false
+            var counter = [0]
+            
+            repeat {
+                var j = counter[0]
+                if (j >= len(text)) {
+                    return newQuery
+                }
+                
+                var char = text[j]
+                if (char == "?") {
+                    if (found == false) {
+                        var newQuery = newQuery + value
+                        var found = true
+                    } else {
+                        var newQuery = newQuery + char
+                    }
+                } else {
+                    var newQuery = newQuery + char
+                }
+                set(counter, 0, j + 1)
+            }
+        }
+        
+        var newQuery = replaceFirst(finalQuery[0], value)
+        set(finalQuery, 0, newQuery)
+    })
+    
+    var hasil = query(conn, [[finalQuery[0], []]])
+    return hasil
+}
+
+var hashPassword = fn(password) {
+    var h = 0
+    var i = 0
+    repeat {
+        if (i >= len(password)) {
+            return string(h)
+        }
+        var char = password[i]
+        var h = ((h * 31) + ord(char))
+        var i = i + 1
+    }
+}
+
+var setUserLogin = fn(data) {
+    set(userLoginContainer, 0, data)
+}
+
+var getUserLogin = fn() {
+    return userLoginContainer[0]
+}
+
+var setSelectedProduct = fn(data) {
+    set(selectedProductContainer, 0, data)
+}
+
+var getSelectedProduct = fn() {
+    return selectedProductContainer[0]
+}
+
+var dapatkanUserId = fn() {
+    var u = getUserLogin()
+    if (u != null) {
+        return u[0]
+    }
+    return null
+}
+
+var isAdmin = fn() {
+    var u = getUserLogin()
+    if (u != null) {
+        if (len(u) >= 4) {
+            var role = u[3]
+            if (role == "admin") {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+var daftar = fn() {
+    var username = input("Username:", "Pendaftaran User Baru")
+    if (empty(username)) {
+        return false
+    }
+    
+    var pwd = password("Password:", "Pendaftaran User Baru")
+    if (empty(pwd)) {
+        return false
+    }
+    
+    var namaLengkap = input("Nama Lengkap:", "Pendaftaran User Baru")
+    if (empty(namaLengkap)) {
+        return false
+    }
+    
+    var roleMsg = "Pilih Role:" + newline() + "1. User (Kasir)" + newline() + "2. Admin (Manajer)"
+    var roleInput = input(roleMsg, "Pilih Role")
+    
+    if (empty(roleInput)) {
+        return false
+    }
+    
+    var role = "user"
+    var roleNum = number(roleInput)
+    
+    if (roleNum == 2) {
+        var role = "admin"
+    }
+    
+    var hashedPassword = hashPassword(pwd)
+    var q = "INSERT INTO users (username, password, nama_lengkap, role) VALUES (?, ?, ?, ?)"
+    var hasil = eksekusiQuery(q, [username, hashedPassword, namaLengkap, role])
+    
+    if (hasil != null) {
+        var roleText = "User (Kasir)"
+        if (role == "admin") {
+            var roleText = "Admin (Manajer)"
+        }
+        message("Pendaftaran berhasil!" + newline() + "Username: " + username + newline() + "Role: " + roleText + newline() + newline() + "Silakan login.")
+        return true
+    }
+    message("Error: Username sudah digunakan")
+    return false
+}
+
+var login = fn() {
+    var loginData = login_dialog("Login")
+    
+    if (len(loginData) != 2) {
+        return false
+    }
+    
+    var username = loginData[0]
+    var pwd = loginData[1]
+    
+    var hashedPassword = hashPassword(pwd)
+    var q = "SELECT id, username, nama_lengkap, role FROM users WHERE username = ? AND password = ?"
+    var hasil = eksekusiQuery(q, [username, hashedPassword])
+    
+    if (hasil != null) {
+        if (len(hasil) > 0) {
+            if (len(hasil[0]) > 0) {
+                var userData = hasil[0][0]
+                setUserLogin(userData)
+                message("Login berhasil! Selamat datang, " + userData[2])
+                return true
+            }
+        }
+    }
+    
+    message("Username atau password salah!")
+    return false
+}
+
+var logout = fn() {
+    setUserLogin(null)
+    message("Logout berhasil!")
+}
+
+var lihatSemuaProduk = fn() {
+    var q = "SELECT id, nama, harga, stok, kategori FROM products ORDER BY kategori, nama"
+    var hasil = eksekusiQuery(q, [])
+    if (hasil != null) {
+        if (len(hasil) > 0) {
+            return hasil[0]
+        }
+    }
+    return []
+}
+
+var cariProduk = fn() {
+    var keyword = input("Masukkan kata kunci pencarian:", "Cari Produk")
+    if (empty(keyword)) {
+        return null
+    }
+    
+    var q = "SELECT id, nama, harga, stok, kategori FROM products WHERE nama ILIKE ? ORDER BY nama"
+    var hasil = eksekusiQuery(q, ["%" + keyword + "%"])
+    
+    if (hasil == null) {
+        message("Produk tidak ditemukan")
+        return null
+    }
+    
+    if (len(hasil) == 0) {
+        message("Produk tidak ditemukan")
+        return null
+    }
+    
+    if (len(hasil[0]) == 0) {
+        message("Produk tidak ditemukan")
+        return null
+    }
+    
+    reset()
+    var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
+    var resultsFormatted = formatDataProduk(hasil[0])
+    config(tabel, "contents", resultsFormatted)
+    config(tabel, "size", [800, 400])
+    table_center(tabel, 0)
+    table_left(tabel, 1)
+    table_right(tabel, 2)
+    table_center(tabel, 3)
+    table_center(tabel, 4)
+    
+    var btnKembali = component("button", "Kembali")
+    
+    event(btnKembali, fn() {
+        frame_close()
+        tampilkanProduk()
+    })
+    
+    add(tabel)
+    add_s(btnKembali)
+    title("Hasil Pencarian: " + keyword)
+    show()
+}
+
+var tampilkanProduk = fn() {
+    reset()
+    
+    var userData = getUserLogin()
+    var roleUser = string(userData[3])
+    
+    var mainGrid = component("grid", "")
+    
+    var lblInfo = component("label", "Login sebagai: " + userData[2] + " | Role: " + roleUser)
+    config(lblInfo, "font", ["dialog", 1, 14])
+    
+    grid_add(mainGrid, lblInfo, 0, 0, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
+    
+    var products = lihatSemuaProduk()
+    var productsFormatted = formatDataProduk(products)
+    
+    var lblDaftarProduk = component("label", "DAFTAR PRODUK")
+    config(lblDaftarProduk, "font", ["dialog", 1, 16])
+    grid_add(mainGrid, lblDaftarProduk, 0, 1, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
+    
+    var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
+    config(tabel, "contents", productsFormatted)
+    config(tabel, "size", [900, 600])
+    table_center(tabel, 0)
+    table_left(tabel, 1)
+    table_right(tabel, 2)
+    table_center(tabel, 3)
+    table_center(tabel, 4)
+    grid_add(mainGrid, tabel, 0, 2, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+    
+    if (roleUser == "admin") {
+        var lblSelected = component("label", "Pilih produk dari tabel untuk edit/hapus")
+        config(lblSelected, "font", ["dialog", 2, 12])
+        grid_add(mainGrid, lblSelected, 0, 3, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
+        
+        event(tabel, fn() {
+            var row = get(tabel, "active")
+            if (row >= 0) {
+                var selectedRow = products[row]
+                setSelectedProduct(selectedRow)
+                config(lblSelected, "text", "Dipilih: " + selectedRow[1] + " (ID: " + string(selectedRow[0]) + ")")
+            }
+        })
+        
+        var buttonGrid = component("grid", "")
+        
+        var btnCari = component("button", "Cari Produk")
+        var btnTambahProduk = component("button", "Tambah Produk")
+        var btnEditProduk = component("button", "Edit Produk")
+        var btnHapusProduk = component("button", "Hapus Produk")
+        var btnLaporan = component("button", "Laporan Harian")
+        var btnKelolaUser = component("button", "Kelola User")
+        var btnLogout = component("button", "Logout")
+        var btnKeluar = component("button", "Keluar")
+        
+        grid_add(buttonGrid, btnCari, 0, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnTambahProduk, 1, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnEditProduk, 2, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnHapusProduk, 0, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnLaporan, 1, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnKelolaUser, 2, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnLogout, 0, 2, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnKeluar, 1, 2, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        
+        event(btnCari, fn() {
+            cariProduk()
+        })
+        
+        event(btnTambahProduk, fn() {
+            tambahProduk()
+        })
+        
+        event(btnEditProduk, fn() {
+            var produk = getSelectedProduct()
+            if (produk == null) {
+                message("Silakan pilih produk dari tabel terlebih dahulu!")
+                return null
+            }
+            editProdukDariTabel(produk)
+        })
+        
+        event(btnHapusProduk, fn() {
+            var produk = getSelectedProduct()
+            if (produk == null) {
+                message("Silakan pilih produk dari tabel terlebih dahulu!")
+                return null
+            }
+            hapusProdukDariTabel(produk)
+        })
+        
+        event(btnLaporan, fn() {
+            laporanHarian()
+        })
+        
+        event(btnKelolaUser, fn() {
+            kelolaUser()
+        })
+        
+        event(btnLogout, fn() {
+            logout()
+            frame_close()
+            tampilkanMenuUtama()
+        })
+        
+        event(btnKeluar, fn() {
+            keluarAplikasi()
+        })
+        
+        grid_add(mainGrid, buttonGrid, 0, 4, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
+        
+    } else {
+        var lblSelected = component("label", "Pilih produk dari tabel untuk menambah ke keranjang")
+        config(lblSelected, "font", ["dialog", 2, 12])
+        grid_add(mainGrid, lblSelected, 0, 3, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
+        
+        event(tabel, fn() {
+            var row = get(tabel, "active")
+            if (row >= 0) {
+                var selectedRow = products[row]
+                setSelectedProduct(selectedRow)
+                config(lblSelected, "text", "Dipilih: " + selectedRow[1] + " (ID: " + string(selectedRow[0]) + ")")
+            }
+        })
+        
+        var buttonGrid = component("grid", "")
+        
+        var btnCari = component("button", "Cari Produk")
+        var btnTambahKeranjang = component("button", "Tambah ke Keranjang")
+        var btnKeranjang = component("button", "Lihat Keranjang")
+        var btnRiwayat = component("button", "Riwayat Transaksi")
+        var btnLogout = component("button", "Logout")
+        var btnKeluar = component("button", "Keluar")
+        
+        grid_add(buttonGrid, btnCari, 0, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnTambahKeranjang, 1, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnKeranjang, 2, 0, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnRiwayat, 0, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnLogout, 1, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        grid_add(buttonGrid, btnKeluar, 2, 1, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
+        
+        event(btnCari, fn() {
+            cariProduk()
+        })
+        
+        event(btnTambahKeranjang, fn() {
+            var produk = getSelectedProduct()
+            if (produk == null) {
+                message("Silakan pilih produk dari tabel terlebih dahulu!")
+                return null
+            }
+            tambahKeKeranjangDariTabel(produk)
+        })
+        
+        event(btnKeranjang, fn() {
+            tampilkanKeranjang()
+        })
+        
+        event(btnRiwayat, fn() {
+            lihatRiwayatTransaksi()
+        })
+        
+        event(btnLogout, fn() {
+            logout()
+            frame_close()
+            tampilkanMenuUtama()
+        })
+        
+        event(btnKeluar, fn() {
+            keluarAplikasi()
+        })
+        
+        grid_add(mainGrid, buttonGrid, 0, 4, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
+    }
+    
+    add(mainGrid)
+    title("Aplikasi Kasir - " + roleUser)
+    show()
+}
+
+var tambahKeKeranjangDariTabel = fn(produk) {
+    var userId = dapatkanUserId()
+    
+    if (userId == null) {
+        message("Anda harus login terlebih dahulu!")
+        return false
+    }
+    
+    var productId = produk[0]
+    var namaProduk = produk[1]
+    var hargaProduk = produk[2]
+    var stokProduk = produk[3]
+    
+    var jumlahStr = input("Jumlah untuk " + namaProduk + ":" + newline() + "Harga: " + formatRupiah(hargaProduk) + newline() + "Stok tersedia: " + string(stokProduk), "Tambah ke Keranjang")
+    
+    if (empty(jumlahStr)) {
+        return false
+    }
+    
+    var jumlah = number(jumlahStr)
+    
+    if (jumlah <= 0) {
+        message("Jumlah harus lebih dari 0!")
+        return false
+    }
+    
+    if (stokProduk < jumlah) {
+        message("Stok tidak mencukupi!" + newline() + "Stok tersedia: " + string(stokProduk))
+        return false
+    }
+    
+    var qCheck = "SELECT id, jumlah FROM keranjang WHERE user_id = ? AND product_id = ?"
+    var hasilCheck = eksekusiQuery(qCheck, [userId, productId])
+    
+    if (hasilCheck != null) {
+        if (len(hasilCheck) > 0) {
+            if (len(hasilCheck[0]) > 0) {
+                var jumlahLama = hasilCheck[0][0][1]
+                var jumlahBaru = jumlahLama + jumlah
+                
+                if (stokProduk < jumlahBaru) {
+                    message("Total jumlah melebihi stok!" + newline() + "Di keranjang: " + string(jumlahLama) + newline() + "Stok tersedia: " + string(stokProduk))
+                    return false
+                }
+                
+                var qUpdate = "UPDATE keranjang SET jumlah = ? WHERE user_id = ? AND product_id = ?"
+                var hasilUpdate = eksekusiQuery(qUpdate, [jumlahBaru, userId, productId])
+                
+                if (hasilUpdate != null) {
+                    message(namaProduk + " berhasil ditambahkan ke keranjang!" + newline() + "Total di keranjang: " + string(jumlahBaru))
+                    setSelectedProduct(null)
+                    return true
+                }
+            }
+        }
+    }
+    
+    var q = "INSERT INTO keranjang (user_id, product_id, jumlah) VALUES (?, ?, ?)"
+    var hasilInsert = eksekusiQuery(q, [userId, productId, jumlah])
+    
+    if (hasilInsert != null) {
+        message(namaProduk + " berhasil ditambahkan ke keranjang!")
+        setSelectedProduct(null)
+        return true
+    }
+    
+    message("Gagal menambahkan produk ke keranjang!")
+    return false
+}
+
+var tambahProduk = fn() {
+    var nama = input("Nama Produk:", "Tambah Produk Baru")
+    if (empty(nama)) {
+        return false
+    }
+    
+    var hargaStr = input("Harga:", "Tambah Produk Baru")
+    if (empty(hargaStr)) {
+        return false
+    }
+    var harga = number(hargaStr)
+    
+    var stokStr = input("Stok:", "Tambah Produk Baru")
+    if (empty(stokStr)) {
+        return false
+    }
+    var stok = number(stokStr)
+    
+    var kategoriMsg = "Pilih Kategori:" + newline() + "1. Makanan" + newline() + "2. Minuman" + newline() + "3. Lainnya"
+    var kategoriInput = input(kategoriMsg, "Pilih Kategori")
+    if (empty(kategoriInput)) {
+        return false
+    }
+    
+    var kategori = "Lainnya"
+    var kategoriNum = number(kategoriInput)
+    
+    if (kategoriNum == 1) {
+        var kategori = "Makanan"
+    } else {
+        if (kategoriNum == 2) {
+            var kategori = "Minuman"
+        } else {
+            var kategori = "Lainnya"
+        }
+    }
+    
+    var q = "INSERT INTO products (nama, harga, stok, kategori) VALUES (?, ?, ?, ?)"
+    var hasil = eksekusiQuery(q, [nama, harga, stok, kategori])
+    
+    if (hasil != null) {
+        message("Produk berhasil ditambahkan!")
+        tampilkanProduk()
+        return true
+    }
+    
+    message("Gagal menambahkan produk!")
+    return false
+}
+
+var editProdukDariTabel = fn(produk) {
+    var productId = produk[0]
+    var produkLama = produk
+    
+    var nama = [produkLama[1]]
+    var harga = [produkLama[2]]
+    var stok = [produkLama[3]]
+    var kategori = [produkLama[4]]
+    
+    var namaInput = input("Nama Produk [" + string(produkLama[1]) + "]:", "Edit Produk")
+    if (empty(namaInput) == false) {
+        set(nama, 0, namaInput)
+    }
+    
+    var hargaStr = input("Harga [" + string(produkLama[2]) + "]:", "Edit Produk")
+    if (empty(hargaStr) == false) {
+        set(harga, 0, number(hargaStr))
+    }
+    
+    var stokStr = input("Stok [" + string(produkLama[3]) + "]:", "Edit Produk")
+    if (empty(stokStr) == false) {
+        set(stok, 0, number(stokStr))
+    }
+    
+    var kategoriMsg = "Kategori saat ini: " + string(produkLama[4]) + newline() + newline() + "Pilih Kategori Baru:" + newline() + "1. Makanan" + newline() + "2. Minuman" + newline() + "3. Lainnya" + newline() + newline() + "Kosongkan jika tidak ingin mengubah"
+    var kategoriInput = input(kategoriMsg, "Edit Kategori")
+    if (empty(kategoriInput) == false) {
+        var kategoriNum = number(kategoriInput)
+        if (kategoriNum == 1) {
+            set(kategori, 0, "Makanan")
+        } else {
+            if (kategoriNum == 2) {
+                set(kategori, 0, "Minuman")
+            } else {
+                if (kategoriNum == 3) {
+                    set(kategori, 0, "Lainnya")
+                }
+            }
+        }
+    }
+    
+    var q = "UPDATE products SET nama = ?, harga = ?, stok = ?, kategori = ? WHERE id = ?"
+    var hasil = eksekusiQuery(q, [nama[0], harga[0], stok[0], kategori[0], productId])
+    
+    if (hasil != null) {
+        message("Produk berhasil diupdate!")
+        setSelectedProduct(null)
+        tampilkanProduk()
+        return true
+    }
+    
+    message("Gagal mengupdate produk!")
+    return false
+}
+
+var hapusProdukDariTabel = fn(produk) {
+    var productId = produk[0]
+    var namaProduk = produk[1]
+    
+    var konfirmasi = confirm("Yakin ingin menghapus produk: " + namaProduk + "?", "Konfirmasi")
+    if (konfirmasi == "OK") {
+        var q = "DELETE FROM products WHERE id = ?"
+        var hasil = eksekusiQuery(q, [productId])
+        
+        if (hasil != null) {
+            message("Produk berhasil dihapus!")
+            setSelectedProduct(null)
+            tampilkanProduk()
+            return true
+        }
+        
+        message("Gagal menghapus produk!")
+    }
+    return false
+}
+
+var lihatKeranjang = fn() {
+    var userId = dapatkanUserId()
+    if (userId == null) {
+        return []
+    }
+    var q = "SELECT k.id, p.nama, p.harga, k.jumlah, (p.harga * k.jumlah) as subtotal, k.product_id FROM keranjang k JOIN products p ON k.product_id = p.id WHERE k.user_id = ?"
+    var hasil = eksekusiQuery(q, [userId])
+    if (hasil != null) {
+        if (len(hasil) > 0) {
+            return hasil[0]
+        }
+    }
+    return []
+}
+
+var tampilkanKeranjang = fn() {
+    var items = lihatKeranjang()
+    
+    if (len(items) == 0) {
+        message("Keranjang kosong")
+        return null
+    }
+    
+    reset()
+    
+    var totalContainer = [0]
+    each(items, fn(item, idx) {
+        var currentTotal = totalContainer[0]
+        var newTotal = currentTotal + item[4]
+        set(totalContainer, 0, newTotal)
+    })
+    
+    var total = totalContainer[0]
+    
+    var itemsFormatted = formatDataKeranjang(items)
+    
+    var tabel = component("table", "ID,Produk,Harga,Qty,Subtotal", true)
+    config(tabel, "contents", itemsFormatted)
+    config(tabel, "size", [700, 400])
+    
+    table_center(tabel, 0)
+    table_left(tabel, 1)
+    table_right(tabel, 2)
+    table_center(tabel, 3)
+    table_right(tabel, 4)
+    
+    var lblTotal = component("label", "Total: " + formatRupiah(total))
+    config(lblTotal, "font", ["monospaced", 1, 18])
+    
+    var btnCheckout = component("button", "Checkout")
+    var btnHapus = component("button", "Hapus Item")
+    var btnKosongkan = component("button", "Kosongkan Keranjang")
+    var btnTutup = component("button", "Kembali")
+    
+    event(btnCheckout, fn() {
+        var pilihanMetode = ["Tunai", "Kartu", "Transfer"]
+        var metodeMsg = "Pilih Metode Pembayaran:" + newline() + "1. Tunai" + newline() + "2. Kartu" + newline() + "3. Transfer"
+        var pilihanStr = input(metodeMsg, "Checkout")
+        
+        if (empty(pilihanStr)) {
+            return null
+        }
+        
+        var pilihan = number(pilihanStr)
+        var metodePembayaran = "Tunai"
+        
+        if (pilihan == 1) {
+            var metodePembayaran = "Tunai"
+        } else {
+            if (pilihan == 2) {
+                var metodePembayaran = "Kartu"
+            } else {
+                if (pilihan == 3) {
+                    var metodePembayaran = "Transfer"
+                } else {
+                    message("Pilihan tidak valid! Silakan pilih 1, 2, atau 3")
+                    return null
+                }
+            }
+        }
+        
+        var konfirmasi = confirm("Lanjutkan checkout dengan total " + formatRupiah(total) + " via " + metodePembayaran + "?", "Konfirmasi")
+        if (konfirmasi == "OK") {
+            var berhasil = checkoutDenganMetode(metodePembayaran, items, total)
+            if (berhasil) {
+                frame_close()
+                tampilkanProduk()
+            }
+        }
+    })
+    
+    event(btnHapus, fn() {
+        var idStr = input("Masukkan ID item yang akan dihapus:", "Hapus Item")
+        if (empty(idStr) == false) {
+            var itemId = number(idStr)
+            var userId = dapatkanUserId()
+            var q = "DELETE FROM keranjang WHERE id = ? AND user_id = ?"
+            var hasil = eksekusiQuery(q, [itemId, userId])
+            
+            if (hasil != null) {
+                message("Item berhasil dihapus!")
+                frame_close()
+                tampilkanKeranjang()
+            } else {
+                message("Gagal menghapus item!")
+            }
+        }
+    })
+    
+    event(btnKosongkan, fn() {
+        var konfirmasi = confirm("Kosongkan semua item di keranjang?", "Konfirmasi")
+        if (konfirmasi == "OK") {
+            var userId = dapatkanUserId()
+            var q = "DELETE FROM keranjang WHERE user_id = ?"
+            var hasil = eksekusiQuery(q, [userId])
+            
+            if (hasil != null) {
+                message("Keranjang berhasil dikosongkan!")
+                frame_close()
+                tampilkanProduk()
+            } else {
+                message("Gagal mengosongkan keranjang!")
+            }
+        }
+    })
+    
+    event(btnTutup, fn() {
+        frame_close()
+        tampilkanProduk()
+    })
+    
+    add(tabel)
+    add_s([lblTotal, btnCheckout, btnHapus, btnKosongkan, btnTutup])
+    title("Keranjang Belanja")
+    show()
+}
+
+var checkoutDenganMetode = fn(metodePembayaran, items, total) {
+    var userId = dapatkanUserId()
+    
+    if (userId == null) {
+        message("Anda harus login terlebih dahulu!")
+        return false
+    }
+    
+    if (len(items) == 0) {
+        message("Keranjang kosong!")
+        return false
+    }
+    
+    var qTransaksi = "INSERT INTO transaksi (user_id, total, metode_pembayaran, status) VALUES (?, ?, ?, ?) RETURNING id"
+    var hasilTransaksi = eksekusiQuery(qTransaksi, [userId, total, metodePembayaran, "selesai"])
+    
+    if (hasilTransaksi == null) {
+        message("Terjadi kesalahan saat membuat transaksi")
+        return false
+    }
+    
+    if (len(hasilTransaksi) == 0) {
+        message("Terjadi kesalahan saat membuat transaksi")
+        return false
+    }
+    
+    if (len(hasilTransaksi[0]) == 0) {
+        message("Terjadi kesalahan saat membuat transaksi")
+        return false
+    }
+    
+    var tid = hasilTransaksi[0][0][0]
+    
+    var berhasilSemua = [true]
+    each(items, fn(item, i) {
+        var qDetail = "INSERT INTO transaksi_detail (transaksi_id, product_id, jumlah, harga_satuan, subtotal) VALUES (?, ?, ?, ?, ?)"
+        var hasilDetail = eksekusiQuery(qDetail, [tid, item[5], item[3], item[2], item[4]])
+        
+        if (hasilDetail != null) {
+            var qUpdateStok = "UPDATE products SET stok = stok - ? WHERE id = ?"
+            eksekusiQuery(qUpdateStok, [item[3], item[5]])
+        } else {
+            set(berhasilSemua, 0, false)
+        }
+    })
+    
+    if (berhasilSemua[0]) {
+        var qKosongkan = "DELETE FROM keranjang WHERE user_id = ?"
+        eksekusiQuery(qKosongkan, [userId])
+        
+        message("Transaksi berhasil!" + newline() + "ID Transaksi: #" + string(tid) + newline() + "Total: " + formatRupiah(total) + newline() + "Metode: " + metodePembayaran)
+        return true
+    }
+    
+    message("Terjadi kesalahan saat menyimpan detail transaksi")
+    return false
+}
+
+var lihatRiwayatTransaksi = fn() {
+    var userId = dapatkanUserId()
+    var q = "SELECT t.id, t.total, t.tanggal, t.metode_pembayaran FROM transaksi t WHERE t.user_id = ? ORDER BY t.tanggal DESC LIMIT 20"
+    var hasil = eksekusiQuery(q, [userId])
+    
+    if (hasil == null) {
+        message("Belum ada transaksi")
+        return null
+    }
+    
+    if (len(hasil) == 0) {
+        message("Belum ada transaksi")
+        return null
+    }
+    
+    if (len(hasil[0]) == 0) {
+        message("Belum ada transaksi")
+        return null
+    }
+    
+    reset()
+    var tabel = component("table", "ID,Total,Tanggal,Metode", true)
+    var transaksiFormatted = formatDataTransaksi(hasil[0])
+    config(tabel, "contents", transaksiFormatted)
+    config(tabel, "size", [700, 400])
+    
+    table_center(tabel, 0)
+    table_right(tabel, 1)
+    table_center(tabel, 2)
+    table_center(tabel, 3)
+    
+    var btnLihatDetail = component("button", "Lihat Detail")
+    var btnCetakStruk = component("button", "Cetak Struk")
+    var btnTutup = component("button", "Kembali")
+    
+    event(btnLihatDetail, fn() {
+        var idStr = input("Masukkan ID Transaksi:", "Lihat Detail")
+        if (empty(idStr) == false) {
+            var transaksiId = number(idStr)
+            lihatDetailTransaksi(transaksiId)
+        }
+    })
+    
+    event(btnCetakStruk, fn() {
+        var idStr = input("Masukkan ID Transaksi:", "Cetak Struk")
+        if (empty(idStr) == false) {
+            var transaksiId = number(idStr)
+            cetakStruk(transaksiId)
+        }
+    })
+    
+    event(btnTutup, fn() {
+        frame_close()
+        tampilkanProduk()
+    })
+    
+    add(tabel)
+    add_s([btnLihatDetail, btnCetakStruk, btnTutup])
+    title("Riwayat Transaksi")
+    show()
+}
+
+var lihatDetailTransaksi = fn(transaksiId) {
+    var q = "SELECT p.nama, td.jumlah, td.harga_satuan, td.subtotal FROM transaksi_detail td JOIN products p ON td.product_id = p.id WHERE td.transaksi_id = ?"
+    var detail = eksekusiQuery(q, [transaksiId])
+    
+    if (detail == null) {
+        message("Detail transaksi tidak ditemukan")
+        return null
+    }
+    
+    if (len(detail) == 0) {
+        message("Detail transaksi tidak ditemukan")
+        return null
+    }
+    
+    if (len(detail[0]) == 0) {
+        message("Detail transaksi tidak ditemukan")
+        return null
+    }
+    
+    reset()
+    var tabel = component("table", "Produk,Qty,Harga,Subtotal", true)
+    var detailFormatted = formatDataDetail(detail[0])
+    config(tabel, "contents", detailFormatted)
+    config(tabel, "size", [700, 400])
+    
+    table_left(tabel, 0)
+    table_center(tabel, 1)
+    table_right(tabel, 2)
+    table_right(tabel, 3)
+    
+    var totalContainer = [0]
+    each(detail[0], fn(item, i) {
+        var currentTotal = totalContainer[0]
+        var newTotal = currentTotal + item[3]
+        set(totalContainer, 0, newTotal)
+    })
+    
+    var total = totalContainer[0]
+    
+    var lblTotal = component("label", "Total: " + formatRupiah(total))
+    config(lblTotal, "font", ["monospaced", 1, 18])
+    
+    var btnTutup = component("button", "Kembali")
+    
+    event(btnTutup, fn() {
+        frame_close()
+        lihatRiwayatTransaksi()
+    })
+    
+    add(tabel)
+    add_s([lblTotal, btnTutup])
+    title("Detail Transaksi #" + string(transaksiId))
+    show()
+}
+
+var cetakStruk = fn(transaksiId) {
+    var qHeader = "SELECT t.id, t.total, t.tanggal, t.metode_pembayaran, u.nama_lengkap FROM transaksi t JOIN users u ON t.user_id = u.id WHERE t.id = ?"
+    var header = eksekusiQuery(qHeader, [transaksiId])
+    
+    if (header == null) {
+        message("Transaksi tidak ditemukan")
+        return null
+    }
+    
+    if (len(header) == 0) {
+        message("Transaksi tidak ditemukan")
+        return null
+    }
+    
+    if (len(header[0]) == 0) {
+        message("Transaksi tidak ditemukan")
+        return null
+    }
+
+    var qDetail = "SELECT p.nama, td.jumlah, td.harga_satuan, td.subtotal FROM transaksi_detail td JOIN products p ON td.product_id = p.id WHERE td.transaksi_id = ?"
+    var detail = eksekusiQuery(qDetail, [transaksiId])
+
+    if (detail == null) {
+        message("Detail transaksi tidak ditemukan")
+        return null
+    }
+    
+    if (len(detail) == 0) {
+        message("Detail transaksi tidak ditemukan")
+        return null
+    }
+    
+    if (len(detail[0]) == 0) {
+        message("Detail transaksi tidak ditemukan")
+        return null
+    }
+
+    var struk = ["========================================" + newline()]
+    set(struk, 0, struk[0] + "        APLIKASI KASIR" + newline())
+    set(struk, 0, struk[0] + "========================================" + newline())
+    set(struk, 0, struk[0] + "ID Transaksi: #" + string(transaksiId) + newline())
+    set(struk, 0, struk[0] + "Tanggal: " + string(header[0][0][2]) + newline())
+    set(struk, 0, struk[0] + "Kasir: " + string(header[0][0][4]) + newline())
+    set(struk, 0, struk[0] + "Metode: " + string(header[0][0][3]) + newline())
+    set(struk, 0, struk[0] + "========================================" + newline())
+    set(struk, 0, struk[0] + "Produk             Qty  Harga  Subtotal" + newline())
+    set(struk, 0, struk[0] + "----------------------------------------" + newline())
+
+    each(detail[0], fn(item, i) {
+        set(struk, 0, struk[0] + string(item[0]) + " " + string(item[1]) + " " + string(item[2]) + " " + string(item[3]) + newline())
+    })
+
+    set(struk, 0, struk[0] + "========================================" + newline())
+    set(struk, 0, struk[0] + "TOTAL: " + formatRupiah(header[0][0][1]) + newline())
+    set(struk, 0, struk[0] + "========================================" + newline())
+    set(struk, 0, struk[0] + "    Terima kasih atas kunjungan Anda" + newline())
+
+    reset()
+    var textStruk = component("text", struk[0])
+    config(textStruk, "font", ["monospaced", 0, 12])
+
+    var btnCetak = component("button", "Print")
+    var btnTutup = component("button", "Kembali")
+
+    event(btnCetak, fn() {
+        printer([struk[0]], 12, 50, 50, "monospaced")
+        message("Struk berhasil dicetak!")
+    })
+
+    event(btnTutup, fn() {
+        frame_close()
+        lihatRiwayatTransaksi()
+    })
+
+    add(textStruk)
+    add_s([btnCetak, btnTutup])
+    title("Struk Transaksi #" + string(transaksiId))
+    show()
+}
+
+var laporanHarian = fn() {
+    var tanggalInput = input("Tanggal (YYYY-MM-DD), kosongkan untuk hari ini:", "Laporan Harian")
+    var tanggalQuery = ["CURRENT_DATE"]
+    var judulTanggal = ["Hari Ini"]
+    
+    if (empty(tanggalInput) == false) {
+        set(tanggalQuery, 0, "'" + tanggalInput + "'")
+        set(judulTanggal, 0, tanggalInput)
+    }
+    
+    var q = "SELECT COUNT(*) as total_transaksi, COALESCE(SUM(total), 0) as total_pendapatan FROM transaksi WHERE DATE(tanggal) = " + tanggalQuery[0]
+    var hasil = eksekusiQuery(q, [])
+
+    if (hasil == null) {
+        message("Tidak ada data")
+        return null
+    }
+    
+    if (len(hasil) == 0) {
+        message("Tidak ada data")
+        return null
+    }
+    
+    if (len(hasil[0]) == 0) {
+        message("Tidak ada data")
+        return null
+    }
+
+    var totalTransaksi = hasil[0][0][0]
+    var totalPendapatan = hasil[0][0][1]
+
+    var qProduk = "SELECT p.nama, SUM(td.jumlah) as terjual, SUM(td.subtotal) as pendapatan FROM transaksi_detail td JOIN products p ON td.product_id = p.id JOIN transaksi t ON td.transaksi_id = t.id WHERE DATE(t.tanggal) = " + tanggalQuery[0] + " GROUP BY p.nama ORDER BY terjual DESC LIMIT 10"
+    var produkTerlaris = eksekusiQuery(qProduk, [])
+    
+    var totalPendapatanProduk = [0]
+    var produkTerlarisFormatted = []
+    if (produkTerlaris != null) {
+        if (len(produkTerlaris) > 0) {
+            if (len(produkTerlaris[0]) > 0) {
+                each(produkTerlaris[0], fn(produk, i) {
+                    var currentTotal = totalPendapatanProduk[0]
+                    var newTotal = currentTotal + produk[2]
+                    set(totalPendapatanProduk, 0, newTotal)
+                    
+                    var formatted = [
+                        produk[0],
+                        string(produk[1]),
+                        formatRupiah(produk[2])
+                    ]
+                    var produkTerlarisFormatted = produkTerlarisFormatted + [formatted]
+                })
+            }
+        }
+    }
+
+    var qMetode = "SELECT metode_pembayaran, COUNT(*) as jumlah, SUM(total) as total_nilai FROM transaksi WHERE DATE(tanggal) = " + tanggalQuery[0] + " GROUP BY metode_pembayaran ORDER BY jumlah DESC"
+    var metodeData = eksekusiQuery(qMetode, [])
+    
+    var metodeFormatted = []
+    if (metodeData != null) {
+        if (len(metodeData) > 0) {
+            if (len(metodeData[0]) > 0) {
+                each(metodeData[0], fn(metode, i) {
+                    var formatted = [
+                        metode[0],
+                        string(metode[1]),
+                        formatRupiah(metode[2])
+                    ]
+                    var metodeFormatted = metodeFormatted + [formatted]
+                })
+            }
+        }
+    }
+
+    reset()
+
+    var lblJudul = component("label", "LAPORAN HARIAN - " + judulTanggal[0])
+    config(lblJudul, "font", ["dialog", 1, 16])
+
+    var lblRingkasan = component("label", "RINGKASAN TRANSAKSI")
+    config(lblRingkasan, "font", ["dialog", 1, 14])
+
+    var lblTotal = component("label", "Total Transaksi: " + string(totalTransaksi) + " transaksi")
+    config(lblTotal, "font", ["dialog", 0, 12])
+    
+    var lblPendapatan = component("label", "Total Pendapatan: " + formatRupiah(totalPendapatan))
+    config(lblPendapatan, "font", ["dialog", 1, 14])
+
+    var rataRata = 0
+    if (totalTransaksi > 0) {
+        var rataRata = totalPendapatan / totalTransaksi
+    }
+    var lblRataRata = component("label", "Rata-rata per Transaksi: " + formatRupiah(rataRata))
+    config(lblRataRata, "font", ["dialog", 0, 12])
+
+    var lblMetode = component("label", "METODE PEMBAYARAN")
+    config(lblMetode, "font", ["dialog", 1, 14])
+
+    var tabelMetode = component("table", "Metode,Jumlah,Total Nilai", true)
+    if (len(metodeFormatted) > 0) {
+        config(tabelMetode, "contents", metodeFormatted)
+        config(tabelMetode, "size", [700, 100])
+        table_left(tabelMetode, 0)
+        table_center(tabelMetode, 1)
+        table_right(tabelMetode, 2)
+    }
+
+    var lblProduk = component("label", "TOP 10 PRODUK TERLARIS")
+    config(lblProduk, "font", ["dialog", 1, 14])
+
+    var tabelProduk = component("table", "Produk,Qty,Pendapatan", true)
+    if (len(produkTerlarisFormatted) > 0) {
+        config(tabelProduk, "contents", produkTerlarisFormatted)
+        config(tabelProduk, "size", [700, 200])
+        table_left(tabelProduk, 0)
+        table_center(tabelProduk, 1)
+        table_right(tabelProduk, 2)
+    }
+    
+    var lblTotalPendapatanProduk = component("label", "Total Pendapatan dari Semua Produk: " + formatRupiah(totalPendapatanProduk[0]))
+    config(lblTotalPendapatanProduk, "font", ["dialog", 1, 12])
+
+    var btnCetakLaporan = component("button", "Cetak Laporan")
+    var btnTutup = component("button", "Kembali")
+
+    event(btnCetakLaporan, fn() {
+        cetakLaporan(judulTanggal[0], totalTransaksi, totalPendapatan, metodeData, produkTerlaris, totalPendapatanProduk[0])
+    })
+
+    event(btnTutup, fn() {
+        frame_close()
+        tampilkanProduk()
+    })
+
+    add_n([lblJudul, lblRingkasan, lblTotal, lblPendapatan, lblRataRata, lblMetode])
+    add(tabelMetode)
+    add_n([lblProduk])
+    add(tabelProduk)
+    add_n([lblTotalPendapatanProduk])
+    add_s([btnCetakLaporan, btnTutup])
+    title("Laporan Harian")
+    show()
+}
+
+var kelolaUser = fn() {
+    var q = "SELECT id, username, nama_lengkap, role FROM users ORDER BY id"
+    var hasil = eksekusiQuery(q, [])
+    
+    if (hasil == null) {
+        message("Tidak ada data user")
+        return null
+    }
+    
+    if (len(hasil) == 0) {
+        message("Tidak ada data user")
+        return null
+    }
+    
+    if (len(hasil[0]) == 0) {
+        message("Tidak ada data user")
+        return null
+    }
+    
+    reset()
+    
+    var tabel = component("table", "ID,Username,Nama Lengkap,Role", true)
+    config(tabel, "contents", hasil[0])
+    config(tabel, "size", [700, 400])
+    
+    table_center(tabel, 0)
+    table_left(tabel, 1)
+    table_left(tabel, 2)
+    table_center(tabel, 3)
+    
+    var btnUbahRole = component("button", "Ubah Role User")
+    var btnHapusUser = component("button", "Hapus User")
+    var btnResetPassword = component("button", "Reset Password")
+    var btnTutup = component("button", "Kembali")
+    
+    event(btnUbahRole, fn() {
+        var idStr = input("Masukkan ID User yang akan diubah rolenya:", "Ubah Role")
+        if (empty(idStr)) {
+            return null
+        }
+        
+        var userId = number(idStr)
+        
+        var qCek = "SELECT username, nama_lengkap, role FROM users WHERE id = ?"
+        var hasilCek = eksekusiQuery(qCek, [userId])
+        
+        if (hasilCek == null) {
+            message("User tidak ditemukan!")
+            return null
+        }
+        
+        if (len(hasilCek) == 0) {
+            message("User tidak ditemukan!")
+            return null
+        }
+        
+        if (len(hasilCek[0]) == 0) {
+            message("User tidak ditemukan!")
+            return null
+        }
+        
+        var userData = hasilCek[0][0]
+        var roleSekarang = userData[2]
+        
+        var roleMsg = "User: " + userData[1] + newline() + "Role sekarang: " + roleSekarang + newline() + newline() + "Ubah menjadi:" + newline() + "1. user" + newline() + "2. admin"
+        var pilihanStr = input(roleMsg, "Ubah Role")
+        
+        if (empty(pilihanStr)) {
+            return null
+        }
+        
+        var pilihan = number(pilihanStr)
+        var roleBaru = "user"
+        
+        if (pilihan == 2) {
+            var roleBaru = "admin"
+        }
+        
+        var qUpdate = "UPDATE users SET role = ? WHERE id = ?"
+        var hasilUpdate = eksekusiQuery(qUpdate, [roleBaru, userId])
+        
+        if (hasilUpdate != null) {
+            message("Role berhasil diubah menjadi: " + roleBaru)
+            frame_close()
+            kelolaUser()
+        } else {
+            message("Gagal mengubah role!")
+        }
+    })
+    
+    event(btnHapusUser, fn() {
+        var idStr = input("Masukkan ID User yang akan dihapus:", "Hapus User")
+        if (empty(idStr)) {
+            return null
+        }
+        
+        var userId = number(idStr)
+        var userSekarang = dapatkanUserId()
+        
+        if (userId == userSekarang) {
+            message("Anda tidak bisa menghapus akun sendiri!")
+            return null
+        }
+        
+        var konfirmasi = confirm("Yakin ingin menghapus user ini?", "Konfirmasi")
+        if (konfirmasi == "OK") {
+            var q = "DELETE FROM users WHERE id = ?"
+            var hasil = eksekusiQuery(q, [userId])
+            
+            if (hasil != null) {
+                message("User berhasil dihapus!")
+                frame_close()
+                kelolaUser()
+            } else {
+                message("Gagal menghapus user!")
+            }
+        }
+    })
+    
+    event(btnResetPassword, fn() {
+        var idStr = input("Masukkan ID User untuk reset password:", "Reset Password")
+        if (empty(idStr)) {
+            return null
+        }
+        
+        var userId = number(idStr)
+        
+        var passwordBaru = password("Password baru untuk user:", "Reset Password")
+        if (empty(passwordBaru)) {
+            return null
+        }
+        
+        var hashedPassword = hashPassword(passwordBaru)
+        var q = "UPDATE users SET password = ? WHERE id = ?"
+        var hasil = eksekusiQuery(q, [hashedPassword, userId])
+        
+        if (hasil != null) {
+            message("Password berhasil direset!")
+        } else {
+            message("Gagal mereset password!")
+        }
+    })
+    
+    event(btnTutup, fn() {
+        frame_close()
+        tampilkanProduk()
+    })
+    
+    add(tabel)
+    add_s([btnUbahRole, btnHapusUser, btnResetPassword, btnTutup])
+    title("Kelola User")
+    show()
+}
+
+var cetakLaporan = fn(tanggal, totalTransaksi, totalPendapatan, metodeData, produkData, totalPendapatanProduk) {
+    var laporan = ["========================================" + newline()]
+    set(laporan, 0, laporan[0] + "      LAPORAN HARIAN PENJUALAN" + newline())
+    set(laporan, 0, laporan[0] + "========================================" + newline())
+    set(laporan, 0, laporan[0] + "Tanggal: " + tanggal + newline())
+    set(laporan, 0, laporan[0] + "========================================" + newline())
+    set(laporan, 0, laporan[0] + newline())
+    set(laporan, 0, laporan[0] + "RINGKASAN TRANSAKSI" + newline())
+    set(laporan, 0, laporan[0] + "----------------------------------------" + newline())
+    var rataRataLaporan = 0
+    if (totalTransaksi > 0) {
+        var rataRataLaporan = totalPendapatan
+    }
+    set(laporan, 0, laporan[0] + "Total Transaksi    : " + string(totalTransaksi) + newline())
+    set(laporan, 0, laporan[0] + "Total Pendapatan   : " + formatRupiah(totalPendapatan) + newline())
+    set(laporan, 0, laporan[0] + "Rata-rata/Transaksi: " + formatRupiah(rataRataLaporan) + newline())
+    set(laporan, 0, laporan[0] + newline())
+    
+    set(laporan, 0, laporan[0] + "METODE PEMBAYARAN" + newline())
+    set(laporan, 0, laporan[0] + "----------------------------------------" + newline())
+    
+    if (metodeData != null) {
+        if (len(metodeData) > 0) {
+            if (len(metodeData[0]) > 0) {
+                each(metodeData[0], fn(metode, i) {
+                    set(laporan, 0, laporan[0] + string(metode[0]) + ": " + string(metode[1]) + " transaksi (" + formatRupiah(metode[2]) + ")" + newline())
+                })
+            }
+        }
+    }
+    
+    set(laporan, 0, laporan[0] + newline())
+    set(laporan, 0, laporan[0] + "TOP 10 PRODUK TERLARIS" + newline())
+    set(laporan, 0, laporan[0] + "----------------------------------------" + newline())
+    
+    if (produkData != null) {
+        if (len(produkData) > 0) {
+            if (len(produkData[0]) > 0) {
+                var nomor = [1]
+                each(produkData[0], fn(produk, i) {
+                    set(laporan, 0, laporan[0] + string(nomor[0]) + ". " + string(produk[0]) + " - " + string(produk[1]) + " terjual (" + formatRupiah(produk[2]) + ")" + newline())
+                    set(nomor, 0, nomor[0] + 1)
+                })
+            }
+        }
+    }
+    
+    set(laporan, 0, laporan[0] + newline())
+    set(laporan, 0, laporan[0] + "Total Pendapatan dari Semua Produk: " + formatRupiah(totalPendapatanProduk) + newline())
+    set(laporan, 0, laporan[0] + newline())
+    set(laporan, 0, laporan[0] + "========================================" + newline())
+    set(laporan, 0, laporan[0] + "   Laporan dibuat oleh Aplikasi Kasir" + newline())
+    set(laporan, 0, laporan[0] + "========================================" + newline())
+    
+    reset()
+    var textLaporan = component("text", laporan[0])
+    config(textLaporan, "font", ["monospaced", 0, 12])
+    
+    var btnCetak = component("button", "Print")
+    var btnTutup = component("button", "Kembali")
+    
+    event(btnCetak, fn() {
+        printer([laporan[0]], 12, 50, 50, "monospaced")
+        message("Laporan berhasil dicetak!")
+    })
+    
+    event(btnTutup, fn() {
+        frame_close()
+        laporanHarian()
+    })
+    
+    add(textLaporan)
+    add_s([btnCetak, btnTutup])
+    title("Cetak Laporan - " + tanggal)
+    show()
+}
+
+var keluarAplikasi = fn() {
+    var konfirmasi = confirm("Yakin ingin keluar dari aplikasi?", "Konfirmasi Keluar")
+    if (konfirmasi == "OK") {
+        message("Terima kasih telah menggunakan Aplikasi Kasir!")
+        frame_close()
+        system(["exit"])
+    }
+}
+
+var tampilkanMenuUtama = fn() {
+    reset()
+    
+    var lblJudul = component("label", "APLIKASI KASIR")
+    config(lblJudul, "font", ["monospaced", 1, 24])
+    
+    var grid = component("grid", "")
+    
+    var btnLogin = component("button", "Login")
+    var btnDaftar = component("button", "Daftar")
+    
+    grid_add(grid, btnLogin, 0, 0, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
+    grid_add(grid, btnDaftar, 0, 1, 1, 1, 1, 0, 3, 1, 5, 5, 5, 5)
+    
+    event(btnLogin, fn() { 
+        var loginBerhasil = login()
+        if (loginBerhasil) { 
+            frame_close()
+            tampilkanProduk()
+        } 
+    })
+    
+    event(btnDaftar, fn() { 
+        daftar()
+    })
+    
+    add_n(lblJudul)
+    add(grid)
+    title("Aplikasi Kasir")
+    show()
+}
+
+tampilkanMenuUtama()
