@@ -5,29 +5,11 @@ var DB_PASSWORD = "admin"
 load_module("util")
 
 var formatRupiah = fn(angka) {
-    var angkaStr = string(angka)
-    var hasil = ""
-    var counter = 0
-    var panjang = len(angkaStr)
-    
-    var i = panjang - 1
-    repeat {
-        if (i < 0) {
-            return "Rp " + hasil
-        }
-        
-        var hasil = angkaStr[i] + hasil
-        var counter = counter + 1
-        
-        if (counter == 3) {
-            if (i > 0) {
-                var hasil = "." + hasil
-            }
-            var counter = 0
-        }
-        
-        var i = i - 1
-    }
+    return number_group_p_c(angka)
+}
+
+var terbilang = fn(angka) {
+    return words_id(string(angka))
 }
 
 var formatDataProduk = fn(products) {
@@ -40,7 +22,7 @@ var formatDataProduk = fn(products) {
             string(produk[3]),
             string(produk[4])
         ]
-        var hasil = hasil + [formatted]
+        var hasil = hasil + formatted
     })
     return hasil
 }
@@ -55,7 +37,7 @@ var formatDataKeranjang = fn(items) {
             string(item[3]),
             formatRupiah(item[4])
         ]
-        var hasil = hasil + [formatted]
+        var hasil = hasil + formatted
     })
     return hasil
 }
@@ -69,7 +51,7 @@ var formatDataTransaksi = fn(transaksi) {
             string(item[2]),
             string(item[3])
         ]
-        var hasil = hasil + [formatted]
+        var hasil = hasil + formatted
     })
     return hasil
 }
@@ -83,7 +65,7 @@ var formatDataDetail = fn(details) {
             formatRupiah(item[2]),
             formatRupiah(item[3])
         ]
-        var hasil = hasil + [formatted]
+        var hasil = hasil + formatted
     })
     return hasil
 }
@@ -240,7 +222,7 @@ var daftar = fn() {
     }
     message("Error: Username sudah digunakan")
     return false
-}
+} 
 
 var login = fn() {
     var loginData = login_dialog("Login")
@@ -312,7 +294,7 @@ var cariProduk = fn() {
     }
     
     reset()
-    var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
+    var tabel = component("table", "ID,Nama,Harga (Rp),Stok,Kategori", true)
     var resultsFormatted = formatDataProduk(hasil[0])
     config(tabel, "contents", resultsFormatted)
     config(tabel, "size", [800, 400])
@@ -355,7 +337,7 @@ var tampilkanProduk = fn() {
     config(lblDaftarProduk, "font", ["dialog", 1, 16])
     grid_add(mainGrid, lblDaftarProduk, 0, 1, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
     
-    var tabel = component("table", "ID,Nama,Harga,Stok,Kategori", true)
+    var tabel = component("table", "ID,Nama,Harga (Rp),Stok,Kategori", true)
     config(tabel, "contents", productsFormatted)
     config(tabel, "size", [900, 600])
     table_center(tabel, 0)
@@ -585,46 +567,33 @@ var tambahKeKeranjangDariTabel = fn(produk) {
 }
 
 var tambahProduk = fn() {
-    var nama = input("Nama Produk:", "Tambah Produk Baru")
+    var form = [
+        ["text", "nama", "Nama Produk:"],
+        ["text", "harga", "Harga:"],
+        ["text", "stok", "Stok:"],
+        ["combo", "kategori", "Kategori:", ["Makanan", "Minuman", "Lainnya"]]
+    ]
+    
+    var hasil = form_dialog("Tambah Produk Baru", form)
+    
+    if (hasil == null) {
+        return false
+    }
+    
+    var nama = hasil[0]
+    var harga = number(hasil[1])
+    var stok = number(hasil[2])
+    var kategori = hasil[3]
+    
     if (empty(nama)) {
+        message("Nama produk tidak boleh kosong!")
         return false
-    }
-    
-    var hargaStr = input("Harga:", "Tambah Produk Baru")
-    if (empty(hargaStr)) {
-        return false
-    }
-    var harga = number(hargaStr)
-    
-    var stokStr = input("Stok:", "Tambah Produk Baru")
-    if (empty(stokStr)) {
-        return false
-    }
-    var stok = number(stokStr)
-    
-    var kategoriMsg = "Pilih Kategori:" + newline() + "1. Makanan" + newline() + "2. Minuman" + newline() + "3. Lainnya"
-    var kategoriInput = input(kategoriMsg, "Pilih Kategori")
-    if (empty(kategoriInput)) {
-        return false
-    }
-    
-    var kategori = "Lainnya"
-    var kategoriNum = number(kategoriInput)
-    
-    if (kategoriNum == 1) {
-        var kategori = "Makanan"
-    } else {
-        if (kategoriNum == 2) {
-            var kategori = "Minuman"
-        } else {
-            var kategori = "Lainnya"
-        }
     }
     
     var q = "INSERT INTO products (nama, harga, stok, kategori) VALUES (?, ?, ?, ?)"
-    var hasil = eksekusiQuery(q, [nama, harga, stok, kategori])
+    var hasilQuery = eksekusiQuery(q, [nama, harga, stok, kategori])
     
-    if (hasil != null) {
+    if (hasilQuery != null) {
         message("Produk berhasil ditambahkan!")
         tampilkanProduk()
         return true
@@ -746,7 +715,7 @@ var tampilkanKeranjang = fn() {
     
     var itemsFormatted = formatDataKeranjang(items)
     
-    var tabel = component("table", "ID,Produk,Harga,Qty,Subtotal", true)
+    var tabel = component("table", "ID,Produk,Harga (Rp),Qty,Subtotal", true)
     config(tabel, "contents", itemsFormatted)
     config(tabel, "size", [700, 400])
     
@@ -791,7 +760,7 @@ var tampilkanKeranjang = fn() {
             }
         }
         
-        var konfirmasi = confirm("Lanjutkan checkout dengan total " + formatRupiah(total) + " via " + metodePembayaran + "?", "Konfirmasi")
+        var konfirmasi = confirm("Lanjutkan checkout dengan total " + formatRupiah(total) + " (" + terbilang(total) + ") via " + metodePembayaran + "?", "Konfirmasi")
         if (konfirmasi == "OK") {
             var berhasil = checkoutDenganMetode(metodePembayaran, items, total)
             if (berhasil) {
@@ -897,7 +866,7 @@ var checkoutDenganMetode = fn(metodePembayaran, items, total) {
         var qKosongkan = "DELETE FROM keranjang WHERE user_id = ?"
         eksekusiQuery(qKosongkan, [userId])
         
-        message("Transaksi berhasil!" + newline() + "ID Transaksi: #" + string(tid) + newline() + "Total: " + formatRupiah(total) + newline() + "Metode: " + metodePembayaran)
+        message("Transaksi berhasil!" + newline() + "ID Transaksi: #" + string(tid) + newline() + "Total: " + formatRupiah(total) + newline() + "Terbilang: " + terbilang(total) + newline() + "Metode: " + metodePembayaran)
         return true
     }
     
@@ -926,7 +895,7 @@ var lihatRiwayatTransaksi = fn() {
     }
     
     reset()
-    var tabel = component("table", "ID,Total,Tanggal,Metode", true)
+    var tabel = component("table", "ID,Total (Rp),Tanggal,Metode", true)
     var transaksiFormatted = formatDataTransaksi(hasil[0])
     config(tabel, "contents", transaksiFormatted)
     config(tabel, "size", [700, 400])
@@ -987,7 +956,7 @@ var lihatDetailTransaksi = fn(transaksiId) {
     }
     
     reset()
-    var tabel = component("table", "Produk,Qty,Harga,Subtotal", true)
+    var tabel = component("table", "Produk,Qty,Harga (Rp),Subtotal", true)
     var detailFormatted = formatDataDetail(detail[0])
     config(tabel, "contents", detailFormatted)
     config(tabel, "size", [700, 400])
@@ -1151,7 +1120,7 @@ var laporanHarian = fn() {
                         string(produk[1]),
                         formatRupiah(produk[2])
                     ]
-                    var produkTerlarisFormatted = produkTerlarisFormatted + [formatted]
+                    var produkTerlarisFormatted = produkTerlarisFormatted + formatted
                 })
             }
         }
@@ -1170,7 +1139,7 @@ var laporanHarian = fn() {
                         string(metode[1]),
                         formatRupiah(metode[2])
                     ]
-                    var metodeFormatted = metodeFormatted + [formatted]
+                    var metodeFormatted = metodeFormatted + formatted
                 })
             }
         }
@@ -1200,7 +1169,7 @@ var laporanHarian = fn() {
     var lblMetode = component("label", "METODE PEMBAYARAN")
     config(lblMetode, "font", ["dialog", 1, 14])
 
-    var tabelMetode = component("table", "Metode,Jumlah,Total Nilai", true)
+    var tabelMetode = component("table", "Metode,Jumlah,Total Nilai (Rp)", true)
     if (len(metodeFormatted) > 0) {
         config(tabelMetode, "contents", metodeFormatted)
         config(tabelMetode, "size", [700, 100])
@@ -1212,7 +1181,7 @@ var laporanHarian = fn() {
     var lblProduk = component("label", "TOP 10 PRODUK TERLARIS")
     config(lblProduk, "font", ["dialog", 1, 14])
 
-    var tabelProduk = component("table", "Produk,Qty,Pendapatan", true)
+    var tabelProduk = component("table", "Produk,Qty,Pendapatan (Rp)", true)
     if (len(produkTerlarisFormatted) > 0) {
         config(tabelProduk, "contents", produkTerlarisFormatted)
         config(tabelProduk, "size", [700, 200])
