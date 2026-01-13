@@ -567,27 +567,41 @@ var tambahKeKeranjangDariTabel = fn(produk) {
 }
 
 var tambahProduk = fn() {
-    var form = [
-        ["text", "nama", "Nama Produk:"],
-        ["text", "harga", "Harga:"],
-        ["text", "stok", "Stok:"],
-        ["combo", "kategori", "Kategori:", ["Makanan", "Minuman", "Lainnya"]]
-    ]
-    
-    var hasil = form_dialog("Tambah Produk Baru", form)
-    
-    if (hasil == null) {
-        return false
-    }
-    
-    var nama = hasil[0]
-    var harga = number(hasil[1])
-    var stok = number(hasil[2])
-    var kategori = hasil[3]
+    var nama = input("Nama Produk:", "Tambah Produk Baru")
     
     if (empty(nama)) {
         message("Nama produk tidak boleh kosong!")
         return false
+    }
+    
+    var hargaStr = input("Harga:", "Tambah Produk Baru")
+    if (empty(hargaStr)) {
+        return false
+    }
+    var harga = number(hargaStr)
+    
+    var stokStr = input("Stok:", "Tambah Produk Baru")
+    if (empty(stokStr)) {
+        return false
+    }
+    var stok = number(stokStr)
+    
+    var kategoriMsg = "Pilih Kategori:" + newline() + "1. Makanan" + newline() + "2. Minuman" + newline() + "3. Lainnya"
+    var kategoriInput = input(kategoriMsg, "Tambah Produk Baru")
+    
+    if (empty(kategoriInput)) {
+        return false
+    }
+    
+    var kategori = "Lainnya"
+    var kategoriNum = number(kategoriInput)
+    
+    if (kategoriNum == 1) {
+        var kategori = "Makanan"
+    } else {
+        if (kategoriNum == 2) {
+            var kategori = "Minuman"
+        }
     }
     
     var q = "INSERT INTO products (nama, harga, stok, kategori) VALUES (?, ?, ?, ?)"
