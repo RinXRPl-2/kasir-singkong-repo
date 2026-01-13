@@ -1040,24 +1040,29 @@ var cetakStruk = fn(transaksiId) {
     set(struk, 0, struk[0] + "----------------------------------------" + newline())
 
     each(detail[0], fn(item, i) {
-        set(struk, 0, struk[0] + string(item[0]) + " " + string(item[1]) + " " + string(item[2]) + " " + string(item[3]) + newline())
+        set(struk, 0, struk[0] + string(item[0]) + " " + string(item[1]) + " " + formatRupiah(item[2]) + " " + formatRupiah(item[3]) + newline())
     })
 
     set(struk, 0, struk[0] + "========================================" + newline())
     set(struk, 0, struk[0] + "TOTAL: " + formatRupiah(header[0][0][1]) + newline())
+    set(struk, 0, struk[0] + "Terbilang: " + terbilang(header[0][0][1]) + newline())
     set(struk, 0, struk[0] + "========================================" + newline())
     set(struk, 0, struk[0] + "    Terima kasih atas kunjungan Anda" + newline())
 
     reset()
-    var textStruk = component("text", struk[0])
-    config(textStruk, "font", ["monospaced", 0, 12])
+    
+    var editStruk = component("edit", struk[0])
+    config(editStruk, "font", ["monospaced", 0, 12])
+    config(editStruk, "size", [500, 400])
 
     var btnCetak = component("button", "Print")
     var btnTutup = component("button", "Kembali")
 
     event(btnCetak, fn() {
-        printer([struk[0]], 12, 50, 50, "monospaced")
-        message("Struk berhasil dicetak!")
+        var headerText = "STRUK TRANSAKSI #" + string(transaksiId)
+        var footerText = "Dicetak dari Aplikasi Kasir"
+        x_edit_print(editStruk, headerText, footerText)
+        message("Struk berhasil dicetak menggunakan x_edit_print!")
     })
 
     event(btnTutup, fn() {
@@ -1065,7 +1070,7 @@ var cetakStruk = fn(transaksiId) {
         lihatRiwayatTransaksi()
     })
 
-    add(textStruk)
+    add(editStruk)
     add_s([btnCetak, btnTutup])
     title("Struk Transaksi #" + string(transaksiId))
     show()
