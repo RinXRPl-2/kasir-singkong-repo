@@ -16,7 +16,6 @@ var formatDataProduk = fn(products) {
     var hasil = []
     each(products, fn(produk, idx) {
         var formatted = [
-            string(produk[0]),
             string(produk[1]),
             formatRupiah(produk[2]),
             string(produk[3]),
@@ -27,15 +26,13 @@ var formatDataProduk = fn(products) {
     return hasil
 }
 
-var formatDataKeranjang = fn(items) {
+var formatDataUser = fn(users) {
     var hasil = []
-    each(items, fn(item, idx) {
+    each(users, fn(user, idx) {
         var formatted = [
-            string(item[0]),
-            string(item[1]),
-            formatRupiah(item[2]),
-            string(item[3]),
-            formatRupiah(item[4])
+            string(user[1]),
+            string(user[2]),
+            string(user[3])
         ]
         var hasil = hasil + formatted
     })
@@ -46,7 +43,6 @@ var formatDataTransaksi = fn(transaksi) {
     var hasil = []
     each(transaksi, fn(item, idx) {
         var formatted = [
-            string(item[0]),
             formatRupiah(item[1]),
             string(item[2]),
             string(item[3])
@@ -55,6 +51,21 @@ var formatDataTransaksi = fn(transaksi) {
     })
     return hasil
 }
+
+var formatDataKeranjang = fn(items) {
+    var hasil = []
+    each(items, fn(item, idx) {
+        var formatted = [
+            string(item[1]), 
+            formatRupiah(item[2]),
+            string(item[3]),
+            formatRupiah(item[4])
+        ]
+        var hasil = hasil + formatted
+    })
+    return hasil
+}
+
 
 var formatDataDetail = fn(details) {
     var hasil = []
@@ -72,6 +83,16 @@ var formatDataDetail = fn(details) {
 
 var userLoginContainer = [null]
 var selectedProductContainer = [null]
+
+var selectedUserContainer = [null]
+
+var setSelectedUser = fn(data) {
+    set(selectedUserContainer, 0, data)
+}
+
+var getSelectedUser = fn() {
+    return selectedUserContainer[0]
+}
 
 var buatKoneksi = fn() {
     var conn = database("org.postgresql.Driver", DB_URL, DB_USER, DB_PASSWORD)
@@ -293,26 +314,60 @@ var cariProduk = fn() {
         return null
     }
     
+    var products = hasil[0]
+    
     reset()
-    var tabel = component("table", "ID,Nama,Harga (Rp),Stok,Kategori", true)
-    var resultsFormatted = formatDataProduk(hasil[0])
+    
+    var userData = getUserLogin()
+    var roleUser = string(userData[3])
+    
+    var lblSelected = component("label", "Pilih produk dari tabel")
+    config(lblSelected, "font", ["dialog", 2, 12])
+    
+    var tabel = component("table", "Nama,Harga (Rp),Stok,Kategori", true)
+    var resultsFormatted = formatDataProduk(products)
     config(tabel, "contents", resultsFormatted)
     config(tabel, "size", [800, 400])
-    table_center(tabel, 0)
-    table_left(tabel, 1)
-    table_right(tabel, 2)
+    table_left(tabel, 0)
+    table_right(tabel, 1)
+    table_center(tabel, 2)
     table_center(tabel, 3)
-    table_center(tabel, 4)
     
+    event(tabel, fn() {
+        var row = get(tabel, "active")
+        if (row >= 0) {
+            var selectedRow = products[row]
+            setSelectedProduct(selectedRow)
+            config(lblSelected, "text", "Dipilih: " + selectedRow[1])
+        }
+    })
+    
+    var btnTambahKeranjang = component("button", "Tambah ke Keranjang")
     var btnKembali = component("button", "Kembali")
+    
+    if (roleUser == "user") {
+        event(btnTambahKeranjang, fn() {
+            var produk = getSelectedProduct()
+            if (produk == null) {
+                message("Silakan pilih produk dari tabel terlebih dahulu!")
+                return null
+            }
+            tambahKeKeranjangDariTabel(produk)
+        })
+    }
     
     event(btnKembali, fn() {
         frame_close()
         tampilkanProduk()
     })
     
+    add_n(lblSelected)
     add(tabel)
-    add_s(btnKembali)
+    if (roleUser == "user") {
+        add_s([btnTambahKeranjang, btnKembali])
+    } else {
+        add_s(btnKembali)
+    }
     title("Hasil Pencarian: " + keyword)
     show()
 }
@@ -337,14 +392,14 @@ var tampilkanProduk = fn() {
     config(lblDaftarProduk, "font", ["dialog", 1, 16])
     grid_add(mainGrid, lblDaftarProduk, 0, 1, 1, 1, 1, 0, 3, 3, 5, 5, 5, 5)
     
-    var tabel = component("table", "ID,Nama,Harga (Rp),Stok,Kategori", true)
+    var tabel = component("table", "Nama,Harga (Rp),Stok,Kategori", true)
     config(tabel, "contents", productsFormatted)
     config(tabel, "size", [900, 600])
     table_center(tabel, 0)
-    table_left(tabel, 1)
-    table_right(tabel, 2)
+    table_left(tabel, 0)
+    table_right(tabel, 1)
+    table_center(tabel, 2)
     table_center(tabel, 3)
-    table_center(tabel, 4)
     grid_add(mainGrid, tabel, 0, 2, 1, 1, 1, 1, 3, 3, 5, 5, 5, 5)
     
     if (roleUser == "admin") {
@@ -357,7 +412,7 @@ var tampilkanProduk = fn() {
             if (row >= 0) {
                 var selectedRow = products[row]
                 setSelectedProduct(selectedRow)
-                config(lblSelected, "text", "Dipilih: " + selectedRow[1] + " (ID: " + string(selectedRow[0]) + ")")
+                config(lblSelected, "text", "Dipilih: " + selectedRow[1])
             }
         })
         
@@ -462,13 +517,13 @@ var tampilkanProduk = fn() {
         })
         
         event(btnTambahKeranjang, fn() {
-            var produk = getSelectedProduct()
-            if (produk == null) {
-                message("Silakan pilih produk dari tabel terlebih dahulu!")
-                return null
-            }
-            tambahKeKeranjangDariTabel(produk)
-        })
+    var produk = getSelectedProduct()
+    if (produk == null) {
+        message("Silakan pilih produk dari tabel terlebih dahulu!")
+        return null
+    }
+    tambahKeKeranjangDariTabel(produk)
+})
         
         event(btnKeranjang, fn() {
             tampilkanKeranjang()
@@ -708,6 +763,26 @@ var lihatKeranjang = fn() {
     return []
 }
 
+var selectedKeranjangContainer = [null]
+
+var selectedTransaksiContainer = [null]
+
+var setSelectedTransaksi = fn(data) {
+    set(selectedTransaksiContainer, 0, data)
+}
+
+var getSelectedTransaksi = fn() {
+    return selectedTransaksiContainer[0]
+}
+
+var setSelectedKeranjang = fn(data) {
+    set(selectedKeranjangContainer, 0, data)
+}
+
+var getSelectedKeranjang = fn() {
+    return selectedKeranjangContainer[0]
+}
+
 var tampilkanKeranjang = fn() {
     var items = lihatKeranjang()
     
@@ -729,15 +804,26 @@ var tampilkanKeranjang = fn() {
     
     var itemsFormatted = formatDataKeranjang(items)
     
-    var tabel = component("table", "ID,Produk,Harga (Rp),Qty,Subtotal", true)
+    var lblSelected = component("label", "Pilih item dari tabel untuk menghapus")
+    config(lblSelected, "font", ["dialog", 2, 12])
+    
+    var tabel = component("table", "Produk,Harga (Rp),Qty,Subtotal", true)
     config(tabel, "contents", itemsFormatted)
     config(tabel, "size", [700, 400])
     
-    table_center(tabel, 0)
-    table_left(tabel, 1)
-    table_right(tabel, 2)
-    table_center(tabel, 3)
-    table_right(tabel, 4)
+    table_left(tabel, 0)
+    table_right(tabel, 1)
+    table_center(tabel, 2)
+    table_right(tabel, 3)
+    
+    event(tabel, fn() {
+        var row = get(tabel, "active")
+        if (row >= 0) {
+            var selectedRow = items[row]
+            setSelectedKeranjang(selectedRow)
+            config(lblSelected, "text", "Dipilih: " + selectedRow[1])
+        }
+    })
     
     var lblTotal = component("label", "Total: " + formatRupiah(total))
     config(lblTotal, "font", ["monospaced", 1, 18])
@@ -785,20 +871,24 @@ var tampilkanKeranjang = fn() {
     })
     
     event(btnHapus, fn() {
-        var idStr = input("Masukkan ID item yang akan dihapus:", "Hapus Item")
-        if (empty(idStr) == false) {
-            var itemId = number(idStr)
-            var userId = dapatkanUserId()
-            var q = "DELETE FROM keranjang WHERE id = ? AND user_id = ?"
-            var hasil = eksekusiQuery(q, [itemId, userId])
-            
-            if (hasil != null) {
-                message("Item berhasil dihapus!")
-                frame_close()
-                tampilkanKeranjang()
-            } else {
-                message("Gagal menghapus item!")
-            }
+        var item = getSelectedKeranjang()
+        if (item == null) {
+            message("Silakan pilih item dari tabel terlebih dahulu!")
+            return null
+        }
+        
+        var itemId = item[0]
+        var userId = dapatkanUserId()
+        var q = "DELETE FROM keranjang WHERE id = ? AND user_id = ?"
+        var hasil = eksekusiQuery(q, [itemId, userId])
+        
+        if (hasil != null) {
+            message("Item berhasil dihapus!")
+            setSelectedKeranjang(null)
+            frame_close()
+            tampilkanKeranjang()
+        } else {
+            message("Gagal menghapus item!")
         }
     })
     
@@ -811,6 +901,7 @@ var tampilkanKeranjang = fn() {
             
             if (hasil != null) {
                 message("Keranjang berhasil dikosongkan!")
+                setSelectedKeranjang(null)
                 frame_close()
                 tampilkanProduk()
             } else {
@@ -824,6 +915,7 @@ var tampilkanKeranjang = fn() {
         tampilkanProduk()
     })
     
+    add_n(lblSelected)
     add(tabel)
     add_s([lblTotal, btnCheckout, btnHapus, btnKosongkan, btnTutup])
     title("Keranjang Belanja")
@@ -908,35 +1000,51 @@ var lihatRiwayatTransaksi = fn() {
         return null
     }
     
+    var transaksiList = hasil[0]
+    
     reset()
-    var tabel = component("table", "ID,Total (Rp),Tanggal,Metode", true)
-    var transaksiFormatted = formatDataTransaksi(hasil[0])
+    
+    var lblSelected = component("label", "Pilih transaksi dari tabel untuk melihat detail atau cetak struk")
+    config(lblSelected, "font", ["dialog", 2, 12])
+    
+    var tabel = component("table", "Total (Rp),Tanggal,Metode", true)
+    var transaksiFormatted = formatDataTransaksi(transaksiList)
     config(tabel, "contents", transaksiFormatted)
     config(tabel, "size", [700, 400])
     
-    table_center(tabel, 0)
-    table_right(tabel, 1)
+    table_right(tabel, 0)
+    table_center(tabel, 1)
     table_center(tabel, 2)
-    table_center(tabel, 3)
+    
+    event(tabel, fn() {
+        var row = get(tabel, "active")
+        if (row >= 0) {
+            var selectedRow = transaksiList[row]
+            setSelectedTransaksi(selectedRow)
+            config(lblSelected, "text", "Dipilih: Transaksi " + string(selectedRow[2]) + " - " + formatRupiah(selectedRow[1]))
+        }
+    })
     
     var btnLihatDetail = component("button", "Lihat Detail")
     var btnCetakStruk = component("button", "Cetak Struk")
     var btnTutup = component("button", "Kembali")
     
     event(btnLihatDetail, fn() {
-        var idStr = input("Masukkan ID Transaksi:", "Lihat Detail")
-        if (empty(idStr) == false) {
-            var transaksiId = number(idStr)
-            lihatDetailTransaksi(transaksiId)
+        var transaksi = getSelectedTransaksi()
+        if (transaksi == null) {
+            message("Silakan pilih transaksi dari tabel terlebih dahulu!")
+            return null
         }
+        lihatDetailTransaksi(transaksi[0])
     })
     
     event(btnCetakStruk, fn() {
-        var idStr = input("Masukkan ID Transaksi:", "Cetak Struk")
-        if (empty(idStr) == false) {
-            var transaksiId = number(idStr)
-            cetakStruk(transaksiId)
+        var transaksi = getSelectedTransaksi()
+        if (transaksi == null) {
+            message("Silakan pilih transaksi dari tabel terlebih dahulu!")
+            return null
         }
+        cetakStruk(transaksi[0])
     })
     
     event(btnTutup, fn() {
@@ -944,6 +1052,7 @@ var lihatRiwayatTransaksi = fn() {
         tampilkanProduk()
     })
     
+    add_n(lblSelected)
     add(tabel)
     add_s([btnLihatDetail, btnCetakStruk, btnTutup])
     title("Riwayat Transaksi")
@@ -970,7 +1079,7 @@ var lihatDetailTransaksi = fn(transaksiId) {
     }
     
     reset()
-    var tabel = component("table", "Produk,Qty,Harga (Rp),Subtotal", true)
+    var tabel = component("table","Produk,Qty,Harga (Rp),Subtotal", true)
     var detailFormatted = formatDataDetail(detail[0])
     config(tabel, "contents", detailFormatted)
     config(tabel, "size", [700, 400])
@@ -1069,14 +1178,14 @@ var cetakStruk = fn(transaksiId) {
     config(editStruk, "font", ["monospaced", 0, 12])
     config(editStruk, "size", [500, 400])
 
-    var btnCetak = component("button", "Print")
+    var btnCetak = component("button", "Print ")
     var btnTutup = component("button", "Kembali")
 
     event(btnCetak, fn() {
         var headerText = "STRUK TRANSAKSI #" + string(transaksiId)
         var footerText = "Dicetak dari Aplikasi Kasir"
         x_edit_print(editStruk, headerText, footerText)
-        message("Struk berhasil dicetak menggunakan x_edit_print!")
+        message("Struk berhasil dicetak!")
     })
 
     event(btnTutup, fn() {
@@ -1253,16 +1362,30 @@ var kelolaUser = fn() {
         return null
     }
     
+    var users = hasil[0]
+    
     reset()
     
-    var tabel = component("table", "ID,Username,Nama Lengkap,Role", true)
-    config(tabel, "contents", hasil[0])
+    var lblSelected = component("label", "Pilih user dari tabel untuk edit")
+    config(lblSelected, "font", ["dialog", 2, 12])
+    
+    var tabel = component("table", "Username,Nama Lengkap,Role", true)
+    var usersFormatted = formatDataUser(users)
+    config(tabel, "contents", usersFormatted)
     config(tabel, "size", [700, 400])
     
-    table_center(tabel, 0)
+    table_left(tabel, 0)
     table_left(tabel, 1)
-    table_left(tabel, 2)
-    table_center(tabel, 3)
+    table_center(tabel, 2)
+    
+    event(tabel, fn() {
+        var row = get(tabel, "active")
+        if (row >= 0) {
+            var selectedRow = users[row]
+            setSelectedUser(selectedRow)
+            config(lblSelected, "text", "Dipilih: " + selectedRow[2] + " (" + selectedRow[1] + ")")
+        }
+    })
     
     var btnUbahRole = component("button", "Ubah Role User")
     var btnHapusUser = component("button", "Hapus User")
@@ -1270,35 +1393,18 @@ var kelolaUser = fn() {
     var btnTutup = component("button", "Kembali")
     
     event(btnUbahRole, fn() {
-        var idStr = input("Masukkan ID User yang akan diubah rolenya:", "Ubah Role")
-        if (empty(idStr)) {
+        var user = getSelectedUser()
+        if (user == null) {
+            message("Silakan pilih user dari tabel terlebih dahulu!")
             return null
         }
         
-        var userId = number(idStr)
+        var userId = user[0]
+        var username = user[1]
+        var namaLengkap = user[2]
+        var roleSekarang = user[3]
         
-        var qCek = "SELECT username, nama_lengkap, role FROM users WHERE id = ?"
-        var hasilCek = eksekusiQuery(qCek, [userId])
-        
-        if (hasilCek == null) {
-            message("User tidak ditemukan!")
-            return null
-        }
-        
-        if (len(hasilCek) == 0) {
-            message("User tidak ditemukan!")
-            return null
-        }
-        
-        if (len(hasilCek[0]) == 0) {
-            message("User tidak ditemukan!")
-            return null
-        }
-        
-        var userData = hasilCek[0][0]
-        var roleSekarang = userData[2]
-        
-        var roleMsg = "User: " + userData[1] + newline() + "Role sekarang: " + roleSekarang + newline() + newline() + "Ubah menjadi:" + newline() + "1. user" + newline() + "2. admin"
+        var roleMsg = "User: " + namaLengkap + newline() + "Role sekarang: " + roleSekarang + newline() + newline() + "Ubah menjadi:" + newline() + "1. user" + newline() + "2. admin"
         var pilihanStr = input(roleMsg, "Ubah Role")
         
         if (empty(pilihanStr)) {
@@ -1317,6 +1423,7 @@ var kelolaUser = fn() {
         
         if (hasilUpdate != null) {
             message("Role berhasil diubah menjadi: " + roleBaru)
+            setSelectedUser(null)
             frame_close()
             kelolaUser()
         } else {
@@ -1325,12 +1432,13 @@ var kelolaUser = fn() {
     })
     
     event(btnHapusUser, fn() {
-        var idStr = input("Masukkan ID User yang akan dihapus:", "Hapus User")
-        if (empty(idStr)) {
+        var user = getSelectedUser()
+        if (user == null) {
+            message("Silakan pilih user dari tabel terlebih dahulu!")
             return null
         }
         
-        var userId = number(idStr)
+        var userId = user[0]
         var userSekarang = dapatkanUserId()
         
         if (userId == userSekarang) {
@@ -1338,13 +1446,14 @@ var kelolaUser = fn() {
             return null
         }
         
-        var konfirmasi = confirm("Yakin ingin menghapus user ini?", "Konfirmasi")
+        var konfirmasi = confirm("Yakin ingin menghapus user: " + user[2] + "?", "Konfirmasi")
         if (konfirmasi == "OK") {
             var q = "DELETE FROM users WHERE id = ?"
             var hasil = eksekusiQuery(q, [userId])
             
             if (hasil != null) {
                 message("User berhasil dihapus!")
+                setSelectedUser(null)
                 frame_close()
                 kelolaUser()
             } else {
@@ -1354,14 +1463,15 @@ var kelolaUser = fn() {
     })
     
     event(btnResetPassword, fn() {
-        var idStr = input("Masukkan ID User untuk reset password:", "Reset Password")
-        if (empty(idStr)) {
+        var user = getSelectedUser()
+        if (user == null) {
+            message("Silakan pilih user dari tabel terlebih dahulu!")
             return null
         }
         
-        var userId = number(idStr)
+        var userId = user[0]
         
-        var passwordBaru = password("Password baru untuk user:", "Reset Password")
+        var passwordBaru = password("Password baru untuk " + user[2] + ":", "Reset Password")
         if (empty(passwordBaru)) {
             return null
         }
@@ -1382,6 +1492,7 @@ var kelolaUser = fn() {
         tampilkanProduk()
     })
     
+    add_n(lblSelected)
     add(tabel)
     add_s([btnUbahRole, btnHapusUser, btnResetPassword, btnTutup])
     title("Kelola User")
@@ -1495,7 +1606,7 @@ var tampilkanMenuUtama = fn() {
             tampilkanProduk()
         } 
     })
-    
+   
     event(btnDaftar, fn() { 
         daftar()
     })
